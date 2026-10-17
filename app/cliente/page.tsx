@@ -1,4 +1,4 @@
-import { customerDiscounts, familyName } from "@/lib/catalog";
+import { customerDiscounts, familyNames } from "@/lib/catalog";
 import { resolveAccess } from "@/lib/access";
 import { requireUser } from "@/lib/session";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,9 @@ export const metadata = { title: "Mi tarifa · Danbel" };
 export default async function TariffPage({ searchParams }: { searchParams: Promise<{ cliente?: string }> }) {
   const user = await requireUser("/cliente");
   const { admin, previewCode, customerCode } = resolveAccess(user, (await searchParams).cliente);
+  const names = await familyNames();
   const tariff = customerCode
-    ? Object.entries(customerDiscounts(customerCode)).map(([code, discount]) => ({ code, name: familyName(code), discount })).sort((a, b) => a.name.localeCompare(b.name, "es"))
+    ? Object.entries(await customerDiscounts(customerCode)).map(([code, discount]) => ({ code, name: names.get(code) ?? code, discount })).sort((a, b) => a.name.localeCompare(b.name, "es"))
     : [];
   const catalogHref = previewCode ? `/?cliente=${encodeURIComponent(previewCode)}` : "/";
   const percent = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });

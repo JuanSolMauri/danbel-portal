@@ -1,7 +1,6 @@
 import "server-only";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import brands from "../data/brands.json";
+import { db } from "./db";
 
 export type Family = { code: string; name: string };
 export type ErpProduct = {
@@ -16,31 +15,27 @@ type Brand = { logo: string | null; sections: Section[] };
 const brandInfo = brands as Record<string, Brand>;
 
 type ErpData = { families: Family[]; products: ErpProduct[]; discounts: Record<string, Record<string, number>> };
-let cache: ErpData | null = null;
+let cache: { data: ErpData; loadedAt: number } | null = null;
+const CACHE_MS = 5 * 60 * 1000;
 
-/** Lee los JSON generados por scripts/import_erp.py. Se recargan al reiniciar el servidor. */
-function erp(): ErpData {
-  if (cache) return cache;
-  const dir = path.join(process.cwd(), "data", "erp");
-  const load = <T,>(name: string): T => JSON.parse(readFileSync(path.join(dir, `${name}.json`), "utf8")) as T;
-  try {
-    cache = { families: load("families"), products: load("products"), discounts: load("discounts") };
-  } catch {
-    throw new Error("Faltan los datos del ERP. Ejecuta: npm run import-erp -- --dir <carpeta con los DBF>");
+/** Datos del ERP subidos con scripts/upload-erp.mjs. Se releen como mucho cada 5 minutos. */
+async function erp(): Promise<ErpData> {
+  if (cache && Date.now() - cache.loadedAt < CACHE_MS) return cache.data;
+  const rows = await db()<{ key: keyof ErpData; data: unknown }[]>`select key, data from erp_data`;
+  const byKey = Object.fromEntries(rows.map(r => [r.key, r.data])) as Partial<ErpData>;
+  if (!byKey.families || !byKey.products || !byKey.discounts) {
+    throw new Error("Faltan los datos del ERP en la base de datos. Ejecuta import-erp y upload-erp.");
   }
-  return cache;
+  cache = { data: byKey as ErpData, loadedAt: Date.now() };
+  return cache.data;
 }
 
-export function customerExists(code: string) {
-  return code in erp().discounts;
+export async function customerDiscounts(code: string): Promise<Record<string, number>> {
+  return (await erp()).discounts[code] ?? {};
 }
 
-export function customerDiscounts(code: string): Record<string, number> {
-  return erp().discounts[code] ?? {};
-}
-
-export function familyName(code: string) {
-  return erp().families.find(f => f.code === code)?.name ?? code;
+export async function familyNames(): Promise<Map<string, string>> {
+  return new Map((await erp()).families.map(f => [f.code, f.name]));
 }
 
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -66,9 +61,9 @@ function sectionsFor(code: string, products: Product[], lines: Map<string, strin
  * con el precio de pedido = PREUTARIFA menos su % de la familia.
  * Sin cliente (administrador) se muestran todas las familias a precio de tarifa.
  */
-export function catalogFor(customerCode: string | null): BrandView[] {
-  const data = erp();
-  const discounts = customerCode ? customerDiscounts(customerCode) : null;
+export async function catalogFor(customerCode: string | null): Promise<BrandView[]> {
+  const data = await erp();
+  const discounts = customerCode ? data.discounts[customerCode] ?? {} : null;
   const byFamily = new Map<string, ErpProduct[]>();
   for (const p of data.products) byFamily.set(p.family, [...(byFamily.get(p.family) ?? []), p]);
 

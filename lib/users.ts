@@ -1,11 +1,9 @@
 import "server-only";
 import { scrypt as scryptCb, timingSafeEqual } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { promisify } from "node:util";
+import { db } from "./db";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
-const USERS_FILE = path.join(process.cwd(), "data", "users.json");
 
 export type User = {
   id: string;
@@ -16,14 +14,8 @@ export type User = {
   passwordHash: string;
 };
 
-export async function readUsers(): Promise<User[]> {
-  try {
-    return JSON.parse(await readFile(USERS_FILE, "utf8")) as User[];
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
-  }
-}
+type Row = { id: string; login: string; role: User["role"]; customer_code: string | null; password_hash: string };
+const toUser = (row: Row): User => ({ id: row.id, login: row.login, role: row.role, customerCode: row.customer_code, passwordHash: row.password_hash });
 
 export async function verifyPassword(password: string, stored: string) {
   const [scheme, salt, hash] = stored.split("$");
@@ -34,10 +26,12 @@ export async function verifyPassword(password: string, stored: string) {
 }
 
 export async function findUserByLogin(login: string) {
-  const normalized = login.trim().toLowerCase();
-  return (await readUsers()).find(user => user.login === normalized) ?? null;
+  const [row] = await db()<Row[]>`select id, login, role, customer_code, password_hash from users where login = ${login.trim().toLowerCase()}`;
+  return row ? toUser(row) : null;
 }
 
 export async function findUserById(id: string) {
-  return (await readUsers()).find(user => user.id === id) ?? null;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const [row] = await db()<Row[]>`select id, login, role, customer_code, password_hash from users where id = ${id}`;
+  return row ? toUser(row) : null;
 }
