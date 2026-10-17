@@ -8,7 +8,7 @@ export type ErpProduct = {
   code: string; family: string; line: string | null; lineName: string | null;
   name: string; ean: string | null; pvp: number | null; basePrice: number; image: string | null;
 };
-export type Product = Omit<ErpProduct, "line" | "basePrice"> & { orderPrice: number };
+export type Product = Omit<ErpProduct, "line"> & { orderPrice: number };
 export type Section = { name: string; images: string[]; codes: string[] };
 export type BrandView = { code: string; name: string; logo: string | null; discount: number | null; sections: Section[]; products: Product[] };
 
@@ -78,9 +78,9 @@ export function catalogFor(customerCode: string | null): BrandView[] {
       const discount = discounts ? discounts[f.code] : null;
       const source = byFamily.get(f.code)!;
       const lines = new Map(source.map(p => [p.code, p.lineName]));
-      const products = source.map(({ line: _line, basePrice, ...p }) => ({
+      const products = source.map(({ line: _line, ...p }) => ({
         ...p,
-        orderPrice: round2(basePrice * (1 - (discount ?? 0) / 100)),
+        orderPrice: round2(p.basePrice * (1 - (discount ?? 0) / 100)),
       }));
       return {
         code: f.code,

@@ -4,13 +4,14 @@ import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Mail, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Product = {code:string;name:string;ean?:string|null;pvp:number|null;orderPrice?:number;image?:string|null};
+type Product = {code:string;name:string;ean?:string|null;pvp:number|null;orderPrice?:number;basePrice?:number;image?:string|null};
 type Section = {name:string;images:string[];codes:string[]};
 type Props = {brandName:string;priceListLabel:string;versionLabel:string;logoSrc?:string;
   products:Product[];sections:Section[];customerCode?:string;discount:number;query:string;
   quantities:Record<string,number>;setQuantities:Dispatch<SetStateAction<Record<string,number>>>;
   notes:string;setNotes:Dispatch<SetStateAction<string>>};
 const euro = (value:number) => new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(value);
+const percent = (value:number) => `${new Intl.NumberFormat("es-ES",{maximumFractionDigits:2}).format(value)}%`;
 
 export default function BrandOrder({brandName,priceListLabel,versionLabel,logoSrc,products,sections,customerCode,discount,query,quantities,setQuantities,notes,setNotes}:Props) {
   const [copied,setCopied]=useState(false);
@@ -51,8 +52,8 @@ export default function BrandOrder({brandName,priceListLabel,versionLabel,logoSr
         <div className="sergio-section-heading"><h3>{section.name}</h3><span>{sectionProducts.length} referencias</span></div>
         <div className="sergio-section-content">
           {section.images.length?<div className="sergio-section-photos">{section.images.map(src=><a key={src} href={src} target="_blank" rel="noopener noreferrer" aria-label={`Ampliar fotografía de ${section.name}`}><img src={src} alt={`Productos ${brandName} de la línea ${section.name}`} loading="lazy"/></a>)}</div>:null}
-          {sectionProducts.length?<div className="order-table-scroll"><table className="order-table"><thead><tr><th scope="col">EAN / Ref.</th><th scope="col">Descripción</th><th scope="col">PVP</th><th scope="col">Precio</th><th scope="col">Unidades</th><th scope="col">Total</th></tr></thead>
-            <tbody>{sectionProducts.map(p=><tr key={p.code}><td>{p.ean??"—"}<small>{p.code}</small></td><td><div className="order-product-cell">{p.image?<img src={p.image} alt="" loading="lazy"/>:null}<span>{p.name}</span></div></td><td>{p.pvp===null?"—":euro(p.pvp)}</td><td>{euro(p.orderPrice??0)}</td><td><input type="number" min="0" max="100000" step="1" inputMode="numeric" value={quantities[p.code]??0} onChange={e=>{
+          {sectionProducts.length?<div className="order-table-scroll"><table className="order-table"><thead><tr><th scope="col">EAN / Ref.</th><th scope="col">Descripción</th><th scope="col">PVP</th><th scope="col">Tarifa</th><th scope="col">Dto.</th><th scope="col">Precio neto</th><th scope="col">Unidades</th><th scope="col">Total</th></tr></thead>
+            <tbody>{sectionProducts.map(p=><tr key={p.code}><td>{p.ean??"—"}<small>{p.code}</small></td><td><div className="order-product-cell">{p.image?<img src={p.image} alt="" loading="lazy"/>:null}<span>{p.name}</span></div></td><td>{p.pvp===null?"—":euro(p.pvp)}</td><td>{p.basePrice===undefined?"—":euro(p.basePrice)}</td><td>{percent(discount)}</td><td><strong>{euro(p.orderPrice??0)}</strong></td><td><input type="number" min="0" max="100000" step="1" inputMode="numeric" value={quantities[p.code]??0} onChange={e=>{
               const value=Number(e.target.value);
               setQuantities(current=>({...current,[p.code]:Number.isFinite(value)?Math.min(100000,Math.max(0,Math.floor(value))):0}));
             }} aria-label={`Unidades de ${p.name}`}/></td><td>{euro(Math.round((p.orderPrice??0)*(quantities[p.code]??0)*100)/100)}</td></tr>)}</tbody>
