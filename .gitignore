@@ -1,0 +1,8 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env*
+# Datos confidenciales del ERP y cuentas de acceso: nunca al repositorio
+data/erp/
+data/users.json
