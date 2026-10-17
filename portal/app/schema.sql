@@ -1,0 +1,46 @@
+CREATE TABLE IF NOT EXISTS families (
+  code VARCHAR(10) NOT NULL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS products (
+  code VARCHAR(20) NOT NULL PRIMARY KEY,
+  family VARCHAR(10) NOT NULL,
+  line_name VARCHAR(120) NULL,
+  name VARCHAR(200) NOT NULL,
+  ean VARCHAR(30) NULL,
+  pvp DECIMAL(10,2) NULL,
+  base_price DECIMAL(10,2) NOT NULL,
+  image VARCHAR(200) NULL,
+  KEY idx_products_family (family)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS discounts (
+  customer_code INT NOT NULL,
+  family VARCHAR(10) NOT NULL,
+  dto DECIMAL(6,2) NOT NULL,
+  PRIMARY KEY (customer_code, family)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  login VARCHAR(120) NOT NULL UNIQUE,
+  role ENUM('admin','customer') NOT NULL,
+  customer_code INT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+  ip VARCHAR(45) NOT NULL,
+  attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_attempts (ip, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS imports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  families INT NOT NULL,
+  products INT NOT NULL,
+  customers INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

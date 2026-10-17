@@ -1,8 +1,6 @@
-node_modules/
-.next/
-next-env.d.ts
-*.tsbuildinfo
-.env*
-# Datos confidenciales del ERP y cuentas de acceso: nunca al repositorio
-data/erp/
-data/users.json
+# Configuración con las claves de la base de datos: nunca al repositorio
+portal/app/config.php
+# Datos del ERP (contienen descuentos de clientes)
+*.dbf
+*.DBF
+data/
