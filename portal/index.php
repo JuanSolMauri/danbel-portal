@@ -91,7 +91,7 @@ site_header('catalogo', $access, $user);
               <?php if ($catalog['logo']): ?><img class="sergio-logo" src="<?= e($catalog['logo']) ?>" alt="<?= e($selected['name']) ?>"><?php endif ?>
               <span class="sheet-eyebrow">TARIFA DANBEL</span>
               <strong>Pedido por líneas</strong>
-              <p><?= $overview ? 'Precios de tarifa sin descuento.' : 'Precios con tu descuento aplicado.' ?> Indica las unidades en cada línea.</p>
+              <p><?= $overview ? 'Precios de tarifa sin descuento.' : 'Precios con tu descuento aplicado.' ?> Los testers (T) van a PVP y son gratis hasta el 10% del importe de los productos (P). Indica las unidades en cada línea.</p>
             </div>
             <span class="order-summary">0 productos · 0,00 €</span>
           </div>
@@ -107,16 +107,21 @@ site_header('catalogo', $access, $user);
                 <?php endif ?>
                 <div class="order-table-scroll">
                   <table class="order-table">
-                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Unidades</th><th>Total</th></tr></thead>
+                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Unidades</th><th>Total</th></tr></thead>
                     <tbody>
                     <?php foreach ($section['codes'] as $code): $p = $catalog['products'][$code]; ?>
-                      <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>"
+                      <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>"
                           data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>">
                         <td><?= e($p['ean'] ?? '—') ?><small><?= e($p['code']) ?></small></td>
                         <td><div class="order-product-cell"><?php if ($p['image']): ?><img src="<?= e($p['image']) ?>" alt="" loading="lazy"><?php endif ?><span><?= e($p['name']) ?></span></div></td>
+                        <td><span class="type-badge type-<?= $p['tester'] ? 't' : 'p' ?>" title="<?= $p['tester'] ? 'Tester' : 'Producto' ?>"><?= $p['tester'] ? 'T' : 'P' ?></span></td>
                         <td><?= euro($p['pvp']) ?></td>
+                        <?php if ($p['tester']): ?>
+                        <td>—</td><td>—</td>
+                        <?php else: ?>
                         <td><?= euro($p['base']) ?></td>
                         <td><?= e(percent((float) ($selected['discount'] ?? 0))) ?></td>
+                        <?php endif ?>
                         <td><strong><?= euro($p['net']) ?></strong></td>
                         <td><input type="number" min="0" max="100000" step="1" inputmode="numeric" value="0" aria-label="Unidades de <?= e($p['name']) ?>"></td>
                         <td class="line-total">0,00 €</td>
@@ -133,6 +138,11 @@ site_header('catalogo', $access, $user);
           <div class="order-footer">
             <label for="order-notes">Observaciones para el pedido</label>
             <textarea id="order-notes" maxlength="1000" placeholder="Entrega, referencia interna u otras indicaciones..."></textarea>
+            <dl class="order-breakdown">
+              <div><dt>Productos (P)</dt><dd data-sum="products">0,00 €</dd></div>
+              <div><dt>Testers (T) a PVP</dt><dd data-sum="testers">0,00 €</dd></div>
+              <div><dt>Testers gratis (hasta el 10% de los productos)</dt><dd data-sum="free">0,00 €</dd></div>
+            </dl>
             <div class="order-actions">
               <div><small class="order-units">0 unidades seleccionadas</small><strong class="order-total">Total 0,00 €</strong></div>
               <button type="button" class="btn btn-outline" data-action="clear" disabled>Vaciar</button>
@@ -171,6 +181,6 @@ site_header('catalogo', $access, $user);
   <p class="portal-note">El pedido se prepara en la página y se envía por correo a Danbel. IVA y transporte según las condiciones comerciales acordadas.</p>
   <?php endif ?>
 </main>
-<script src="assets/portal.js?v=1"></script>
+<script src="assets/portal.js?v=2"></script>
 <?php
 page_end();

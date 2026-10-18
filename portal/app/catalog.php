@@ -1,5 +1,6 @@
 <?php
 // Catálogo por cliente: solo las familias con descuento, precio neto = tarifa menos el % de la familia.
+// Los testers no llevan descuento: se cobran a PVP.
 declare(strict_types=1);
 
 function brand_info(): array
@@ -41,11 +42,12 @@ function visible_families(?string $customer): array
 /** Artículos de una familia con su precio neto, agrupados en secciones. */
 function family_catalog(string $family, float $discount): array
 {
-    $stmt = db()->prepare('SELECT code, line_name, name, ean, pvp, base_price, image FROM products WHERE family = ? ORDER BY line_name, name');
+    $stmt = db()->prepare('SELECT code, line_name, name, ean, pvp, base_price, image, tester FROM products WHERE family = ? ORDER BY line_name, name');
     $stmt->execute([$family]);
     $products = [];
     foreach ($stmt->fetchAll() as $p) {
         $base = (float) $p['base_price'];
+        $tester = (bool) $p['tester'];
         $products[$p['code']] = [
             'code' => $p['code'],
             'line' => $p['line_name'],
@@ -53,8 +55,9 @@ function family_catalog(string $family, float $discount): array
             'ean' => $p['ean'],
             'pvp' => $p['pvp'] !== null ? (float) $p['pvp'] : null,
             'base' => $base,
-            'net' => round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON, 2),
+            'net' => $tester ? (float) $p['pvp'] : round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON, 2),
             'image' => $p['image'],
+            'tester' => $tester,
         ];
     }
 

@@ -77,24 +77,37 @@
       var input = tr.querySelector("input");
       var qty = Math.min(100000, Math.max(0, Math.floor(Number(input.value) || 0)));
       var net = Number(tr.dataset.net);
-      return { tr: tr, code: tr.dataset.code, ean: tr.dataset.ean, name: tr.dataset.name, qty: qty, net: net, total: Math.round(net * qty * 100) / 100 };
+      return { tr: tr, code: tr.dataset.code, ean: tr.dataset.ean, name: tr.dataset.name, type: tr.dataset.type, qty: qty, net: net, total: Math.round(net * qty * 100) / 100 };
     });
+  }
+
+  // Productos (P) a precio neto y testers (T) a PVP; los testers son gratis hasta el 10% de los productos.
+  function sums(chosen) {
+    var round = function (v) { return Math.round(v * 100) / 100; };
+    var products = round(chosen.reduce(function (s, l) { return s + (l.type === "T" ? 0 : l.total); }, 0));
+    var testers = round(chosen.reduce(function (s, l) { return s + (l.type === "T" ? l.total : 0); }, 0));
+    var free = round(Math.min(testers, products * 0.1));
+    return { products: products, testers: testers, free: free, total: round(products + testers - free) };
   }
 
   function update() {
     var all = lines();
     var chosen = all.filter(function (l) { return l.qty > 0; });
-    var total = chosen.reduce(function (sum, l) { return sum + l.total; }, 0);
+    var s = sums(chosen);
+    var total = s.total;
     var units = chosen.reduce(function (sum, l) { return sum + l.qty; }, 0);
     all.forEach(function (l) { l.tr.querySelector(".line-total").textContent = euro.format(l.total); });
     results.querySelector(".order-summary").textContent = chosen.length + " productos · " + euro.format(total);
     results.querySelector(".order-units").textContent = units + " unidades seleccionadas";
     results.querySelector(".order-total").textContent = "Total " + euro.format(total);
+    results.querySelector('[data-sum="products"]').textContent = euro.format(s.products);
+    results.querySelector('[data-sum="testers"]').textContent = euro.format(s.testers);
+    results.querySelector('[data-sum="free"]').textContent = "− " + euro.format(s.free);
     buttons.forEach(function (b) { b.disabled = chosen.length === 0; });
     var store = { lines: {}, notes: notes.value };
     chosen.forEach(function (l) { store.lines[l.code] = l.qty; });
     try { localStorage.setItem(storageKey, JSON.stringify(store)); } catch (e) { /* sin almacenamiento */ }
-    return { chosen: chosen, total: total };
+    return { chosen: chosen, total: total, sums: s };
   }
 
   function orderText() {
@@ -107,9 +120,12 @@
       "Descuento de familia: " + d.discount,
       ""
     ].concat(o.chosen.map(function (l) {
-      return l.code + " | EAN " + (l.ean || "sin EAN") + " | " + l.name + " | " + l.qty + " ud. × " + euro.format(l.net) + " = " + euro.format(l.total);
+      return l.type + " | " + l.code + " | EAN " + (l.ean || "sin EAN") + " | " + l.name + " | " + l.qty + " ud. × " + euro.format(l.net) + " = " + euro.format(l.total);
     })).concat([
       "",
+      "Productos (P): " + euro.format(o.sums.products),
+      "Testers (T) a PVP: " + euro.format(o.sums.testers),
+      "Testers gratis (hasta el 10% de los productos): -" + euro.format(o.sums.free),
       "TOTAL: " + euro.format(o.total),
       "IVA y transporte según las condiciones comerciales acordadas.",
       notes.value.trim() ? "Observaciones: " + notes.value.trim() : ""

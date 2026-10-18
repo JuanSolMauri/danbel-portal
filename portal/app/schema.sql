@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS products (
   pvp DECIMAL(10,2) NULL,
   base_price DECIMAL(10,2) NOT NULL,
   image VARCHAR(200) NULL,
+  tester TINYINT(1) NOT NULL DEFAULT 0,
   KEY idx_products_family (family)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

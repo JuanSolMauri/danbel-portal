@@ -49,3 +49,8 @@ a.brand{text-decoration:none}a.brand[hidden],[hidden]{display:none!important}
 .notice{padding:14px 18px;border-radius:5px;font-size:15px;margin:0 0 20px}.notice-ok{background:#e7f4ea;border:1px solid #a9d3b3}.notice-error{background:#fbe9e9;border:1px solid #e0a9a9}
 @media(max-width:680px){.tabs{display:flex}.tab{flex:1}.admin-form{display:grid}}
 .admin-users{border-collapse:collapse;width:100%;font-size:15px}.admin-users th,.admin-users td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}.admin-users th{font-size:13px;background:#e8edf1}
+
+.type-badge{display:inline-block;min-width:22px;padding:2px 6px;border-radius:3px;font-weight:700;font-size:12px;text-align:center}
+.type-p{background:#e8eef5;color:#142944}.type-t{background:#f6ecd9;color:#7a5414}
+.order-breakdown{margin:16px 0 0;display:grid;gap:4px;max-width:440px;margin-left:auto;font-size:13px}
+.order-breakdown div{display:flex;justify-content:space-between;gap:16px}.order-breakdown dt{color:#667488}.order-breakdown dd{margin:0;font-weight:700;white-space:nowrap}
