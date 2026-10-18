@@ -33,9 +33,9 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
 
     $families = [];
     foreach ((new DbfReader($tables['families']))->rows() as $r) {
-        // Solo las familias marcadas como activas en el ERP.
+        // Solo las familias activas en el ERP (ACTIU = 1; 2 es inactiva).
         $code = trim((string) $r['CODI']);
-        if ($code !== '' && $r['ACT'] === true) {
+        if ($code !== '' && (int) $r['ACTIU'] === 1) {
             $families[$code] = trim((string) $r['DESCRICPIO']);
         }
     }
