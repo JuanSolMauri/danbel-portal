@@ -100,11 +100,6 @@ site_header('catalogo', $access, $user);
             <div class="sergio-section">
               <div class="sergio-section-heading"><h3><?= e($section['name']) ?></h3><span><?= count($section['codes']) ?> referencias</span></div>
               <div class="sergio-section-content">
-                <?php if ($section['images']): ?>
-                <div class="sergio-section-photos">
-                  <?php foreach ($section['images'] as $src): ?><a href="<?= e($src) ?>" target="_blank" rel="noopener"><img src="<?= e($src) ?>" alt="<?= e($section['name']) ?>" loading="lazy"></a><?php endforeach ?>
-                </div>
-                <?php endif ?>
                 <div class="order-table-scroll">
                   <table class="order-table">
                     <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Unidades</th><th>Total</th></tr></thead>
@@ -113,7 +108,7 @@ site_header('catalogo', $access, $user);
                       <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>"
                           data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>">
                         <td><?= e($p['ean'] ?? '—') ?><small><?= e($p['code']) ?></small></td>
-                        <td><div class="order-product-cell"><?php if ($p['image']): ?><img src="<?= e($p['image']) ?>" alt="" loading="lazy"><?php endif ?><span><?= e($p['name']) ?></span></div></td>
+                        <td><div class="order-product-cell"><?php if ($p['image']): ?><button type="button" class="zoom-photo" data-zoom="<?= e($p['image']) ?>" aria-label="Ampliar foto de <?= e($p['name']) ?>"><img src="<?= e($p['image']) ?>" alt="" loading="lazy"></button><?php endif ?><span><?= e($p['name']) ?></span></div></td>
                         <td><span class="type-badge type-<?= $p['tester'] ? 't' : 'p' ?>" title="<?= $p['tester'] ? 'Tester' : 'Producto' ?>"><?= $p['tester'] ? 'T' : 'P' ?></span></td>
                         <td><?= euro($p['pvp']) ?></td>
                         <?php if ($p['tester']): ?>
@@ -181,6 +176,7 @@ site_header('catalogo', $access, $user);
   <p class="portal-note">El pedido se prepara en la página y se envía por correo a Danbel. IVA y transporte según las condiciones comerciales acordadas.</p>
   <?php endif ?>
 </main>
-<script src="assets/portal.js?v=2"></script>
+<div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
+<script src="assets/portal.js?v=3"></script>
 <?php
 page_end();

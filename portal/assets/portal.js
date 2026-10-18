@@ -18,6 +18,21 @@
   var results = document.querySelector(".results");
   if (!results) return;
 
+  // Foto ampliada al pulsar la miniatura del producto.
+  var lightbox = document.getElementById("lightbox");
+  var closeLightbox = function () { lightbox.hidden = true; lightbox.querySelector("img").removeAttribute("src"); };
+  results.addEventListener("click", function (ev) {
+    var zoom = ev.target.closest("[data-zoom]");
+    if (!zoom) return;
+    var img = lightbox.querySelector("img");
+    img.src = zoom.dataset.zoom;
+    img.alt = zoom.getAttribute("aria-label").replace(/^Ampliar foto de /, "");
+    lightbox.hidden = false;
+    lightbox.querySelector(".lightbox-close").focus();
+  });
+  lightbox.addEventListener("click", closeLightbox);
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !lightbox.hidden) closeLightbox(); });
+
   // Pestañas Pedido / Fotos
   results.querySelectorAll(".tab").forEach(function (tab) {
     tab.addEventListener("click", function () {
