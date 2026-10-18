@@ -60,3 +60,7 @@ a.brand{text-decoration:none}a.brand[hidden],[hidden]{display:none!important}
 .lightbox[hidden]{display:none}
 .lightbox img{max-width:min(92vw,900px);max-height:88vh;object-fit:contain;background:#fff;border-radius:6px}
 .lightbox-close{position:absolute;top:14px;right:18px;background:transparent;border:0;color:#fff;font-size:36px;line-height:1;cursor:pointer}
+.photo-tile-zoom{display:block;width:100%;height:170px;padding:0;border:0;background:#f7f8f9;cursor:zoom-in}
+.photo-tile-zoom:focus-visible{outline:2px solid #31547b;outline-offset:-2px}
+.photo-facts{margin:2px 0 0;display:grid;gap:3px;font-size:12px}
+.photo-facts div{display:flex;justify-content:space-between;gap:10px}.photo-facts dt{color:#647488}.photo-facts dd{margin:0;font-weight:700;color:#14243b;overflow-wrap:anywhere;text-align:right}

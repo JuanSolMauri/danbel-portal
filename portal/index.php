@@ -151,21 +151,21 @@ site_header('catalogo', $access, $user);
 
       <div class="tab-panel" data-panel="fotos" hidden>
         <section class="brand-photo-page">
-          <?php
-          $photos = array_filter($catalog['products'], fn ($p) => $p['image']);
-          $sectionPhotos = array_merge(...array_map(fn ($s) => $s['images'], $catalog['sections']));
-          ?>
-          <p class="photo-count"><?= count($photos) + count($sectionPhotos) ?> fotos disponibles</p>
-          <?php if (!$photos && !$sectionPhotos): ?>
+          <?php $photos = array_filter($catalog['products'], fn ($p) => $p['image']); ?>
+          <p class="photo-count"><?= count($photos) ?> fotos disponibles</p>
+          <?php if (!$photos): ?>
             <div class="empty">Todavía no hay fotografías de productos para esta familia.</div>
           <?php else: ?>
           <div class="photo-gallery">
-            <?php foreach ($sectionPhotos as $src): ?>
-              <article class="photo-tile"><a href="<?= e($src) ?>" target="_blank" rel="noopener"><img src="<?= e($src) ?>" alt="" loading="lazy"></a><div class="photo-tile-info"><small>Foto de la colección</small></div></article>
-            <?php endforeach ?>
             <?php foreach ($photos as $p): ?>
-              <article class="photo-tile" data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>"><a href="<?= e($p['image']) ?>" target="_blank" rel="noopener"><img src="<?= e($p['image']) ?>" alt="<?= e($p['name']) ?>" loading="lazy"></a>
-                <div class="photo-tile-info"><strong><?= e($p['name']) ?></strong><small>Ref. <?= e($p['code']) ?><?= $p['ean'] ? ' · EAN ' . e($p['ean']) : '' ?></small><span>Tu precio <?= euro($p['net']) ?></span></div></article>
+              <article class="photo-tile" data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>"><button type="button" class="photo-tile-zoom" data-zoom="<?= e($p['image']) ?>" aria-label="Ampliar foto de <?= e($p['name']) ?>"><img src="<?= e($p['image']) ?>" alt="" loading="lazy"></button>
+                <div class="photo-tile-info"><strong><?= e($p['name']) ?></strong>
+                  <dl class="photo-facts">
+                    <div><dt>Ref.</dt><dd><?= e($p['code']) ?></dd></div>
+                    <div><dt>EAN</dt><dd><?= e($p['ean'] ?? '—') ?></dd></div>
+                    <div><dt>PVP</dt><dd><?= euro($p['pvp']) ?></dd></div>
+                    <div><dt>Precio base<?= $p['tester'] ? ' (tester)' : '' ?></dt><dd><?= euro($p['net']) ?></dd></div>
+                  </dl></div></article>
             <?php endforeach ?>
           </div>
           <?php endif ?>
@@ -177,6 +177,6 @@ site_header('catalogo', $access, $user);
   <?php endif ?>
 </main>
 <div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
-<script src="assets/portal.js?v=3"></script>
+<script src="assets/portal.js?v=4"></script>
 <?php
 page_end();
