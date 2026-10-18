@@ -64,6 +64,7 @@ function family_catalog(string $family, float $discount): array
     $brand = brand_info()[$family] ?? ['logo' => null, 'sections' => []];
     $sections = [];
     $placed = [];
+    $lineSection = [];
     // Primero las secciones preparadas para la marca (con sus fotos), luego el resto por subfamilia del ERP.
     foreach ($brand['sections'] as $section) {
         $codes = array_values(array_filter($section['codes'], fn ($c) => isset($products[$c])));
@@ -71,18 +72,35 @@ function family_catalog(string $family, float $discount): array
             $sections[] = ['name' => $section['name'], 'images' => $section['images'], 'codes' => $codes];
             foreach ($codes as $c) {
                 $placed[$c] = true;
+                if ($products[$c]['line'] !== null) {
+                    $lineSection[$products[$c]['line']] ??= count($sections) - 1;
+                }
             }
         }
     }
     $byLine = [];
     foreach ($products as $code => $p) {
-        if (!isset($placed[$code])) {
+        if (isset($placed[$code])) {
+            continue;
+        }
+        // Los artículos que no están en una sección preparada (p. ej. los testers) van con su subfamilia.
+        if ($p['line'] !== null && isset($lineSection[$p['line']])) {
+            $sections[$lineSection[$p['line']]]['codes'][] = $code;
+        } else {
             $byLine[$p['line'] ?? ($sections ? 'Otras referencias' : 'Referencias')][] = $code;
         }
     }
     foreach ($byLine as $name => $codes) {
         $sections[] = ['name' => $name, 'images' => [], 'codes' => $codes];
     }
+    // En cada subfamilia, primero los productos y al final los testers (sin cambiar el orden entre ellos).
+    foreach ($sections as &$section) {
+        $section['codes'] = array_merge(
+            array_values(array_filter($section['codes'], fn ($c) => !$products[$c]['tester'])),
+            array_values(array_filter($section['codes'], fn ($c) => $products[$c]['tester'])),
+        );
+    }
+    unset($section);
 
     return ['logo' => $brand['logo'], 'products' => $products, 'sections' => $sections];
 }
