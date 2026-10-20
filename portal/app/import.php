@@ -1,17 +1,19 @@
 <?php
-// Carga en MySQL las familias, artículos y descuentos de las tablas DBF del ERP.
+// Carga en MySQL las familias, artículos, descuentos y fichas de cliente de las tablas DBF del ERP.
 declare(strict_types=1);
 
 require_once __DIR__ . '/dbf.php';
 
 const ERP_TABLES = ['families' => 'TFAMILIES.DBF', 'products' => 'TMATPR.DBF', 'discounts' => 'TTARIFCLI.DBF'];
+/** Tabla opcional: si no se sube, se conservan las fichas de cliente ya cargadas. */
+const ERP_OPTIONAL_TABLES = ['customers' => 'TCLIENT.DBF'];
 
-/** Busca las tres tablas (sin distinguir mayúsculas) en una carpeta. */
+/** Busca las tablas (sin distinguir mayúsculas) en una carpeta. */
 function find_erp_tables(string $dir): array
 {
     $found = [];
     foreach (scandir($dir) ?: [] as $entry) {
-        foreach (ERP_TABLES as $key => $name) {
+        foreach (ERP_TABLES + ERP_OPTIONAL_TABLES as $key => $name) {
             if (strtoupper($entry) === $name) {
                 $found[$key] = $dir . '/' . $entry;
             }
@@ -97,6 +99,10 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         $db->exec('DELETE FROM families');
         $db->exec('DELETE FROM products');
         $db->exec('DELETE FROM discounts');
+        if (isset($tables['customers'])) {
+            $db->exec('DELETE FROM customers');
+            insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], read_customers($tables['customers']));
+        }
         insert_rows($db, 'families', ['code', 'name'], array_map(null, array_keys($families), array_values($families)));
         insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester'], array_values($products));
         $rows = [];
@@ -115,6 +121,25 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
     }
 
     return ['families' => count($families), 'products' => count($products), 'customers' => $customers];
+}
+
+/** Fichas de cliente de TCLIENT.DBF. La cuenta es IBAN + COMPTA1..4. */
+function read_customers(string $path): array
+{
+    $text = fn ($v) => ($v = trim((string) $v)) === '' ? null : $v;
+    $rows = [];
+    foreach ((new DbfReader($path))->rows() as $r) {
+        if ($r['CODI'] === null) {
+            continue;
+        }
+        $account = implode(' ', array_filter(array_map(fn ($k) => trim((string) $r[$k]), ['IBAN', 'COMPTA1', 'COMPTA2', 'COMPTA3', 'COMPTA4'])));
+        $rows[(int) $r['CODI']] = [
+            (int) $r['CODI'], $text($r['NOMFIS']), $text($r['NOMCOM']), $text($r['ADRESA']), $text($r['CODIPOS']),
+            $text($r['POBLACIO']), $text($r['PROVINCIA']), $text($r['NIF']), $text($r['TELEF1']), $text($r['EMAIL']),
+            $account ?: null, $r['IVA'], $r['REQ'], $text($r['NOMCOME']), (float) ($r['DTO1'] ?? 0), (float) ($r['DTO2'] ?? 0),
+        ];
+    }
+    return array_values($rows);
 }
 
 function insert_rows(PDO $db, string $table, array $columns, array $rows, int $batch = 500): void

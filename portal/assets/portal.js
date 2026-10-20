@@ -97,12 +97,18 @@
   }
 
   // Productos (P) a precio neto y testers (T) a PVP; los testers son gratis hasta el 10% de los productos.
+  // Después, los descuentos 1 y 2 de la ficha del cliente, en cascada sobre el total.
+  var dto1 = Number(results.dataset.dto1) || 0;
+  var dto2 = Number(results.dataset.dto2) || 0;
   function sums(chosen) {
     var round = function (v) { return Math.round(v * 100) / 100; };
     var products = round(chosen.reduce(function (s, l) { return s + (l.type === "T" ? 0 : l.total); }, 0));
     var testers = round(chosen.reduce(function (s, l) { return s + (l.type === "T" ? l.total : 0); }, 0));
     var free = round(Math.min(testers, products * 0.1));
-    return { products: products, testers: testers, free: free, total: round(products + testers - free) };
+    var subtotal = round(products + testers - free);
+    var d1 = round(subtotal * dto1 / 100);
+    var d2 = round((subtotal - d1) * dto2 / 100);
+    return { products: products, testers: testers, free: free, d1: d1, d2: d2, total: round(subtotal - d1 - d2) };
   }
 
   function update() {
@@ -118,6 +124,8 @@
     results.querySelector('[data-sum="products"]').textContent = euro.format(s.products);
     results.querySelector('[data-sum="testers"]').textContent = euro.format(s.testers);
     results.querySelector('[data-sum="free"]').textContent = "− " + euro.format(s.free);
+    if (dto1) results.querySelector('[data-sum="dto1"]').textContent = "− " + euro.format(s.d1);
+    if (dto2) results.querySelector('[data-sum="dto2"]').textContent = "− " + euro.format(s.d2);
     buttons.forEach(function (b) { b.disabled = chosen.length === 0; });
     var store = { lines: {}, notes: notes.value };
     chosen.forEach(function (l) { store.lines[l.code] = l.qty; });
@@ -141,10 +149,12 @@
       "Productos (P): " + euro.format(o.sums.products),
       "Testers (T) a PVP: " + euro.format(o.sums.testers),
       "Testers gratis (hasta el 10% de los productos): -" + euro.format(o.sums.free),
+      dto1 ? "Descuento 1 (" + dto1.toLocaleString("es-ES") + "%): -" + euro.format(o.sums.d1) : null,
+      dto2 ? "Descuento 2 (" + dto2.toLocaleString("es-ES") + "%): -" + euro.format(o.sums.d2) : null,
       "TOTAL: " + euro.format(o.total),
       "IVA y transporte según las condiciones comerciales acordadas.",
       notes.value.trim() ? "Observaciones: " + notes.value.trim() : ""
-    ]).filter(function (line, i, arr) { return line !== "" || (i > 0 && arr[i - 1] !== ""); }).join("\n");
+    ]).filter(function (line) { return line !== null; }).filter(function (line, i, arr) { return line !== "" || (i > 0 && arr[i - 1] !== ""); }).join("\n");
   }
 
   results.querySelector('[data-action="copy"]').addEventListener("click", function () {

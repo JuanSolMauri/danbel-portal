@@ -11,8 +11,8 @@ require __DIR__ . '/import.php';
 
 $dir = $argv[1] ?? '';
 $tables = is_dir($dir) ? find_erp_tables($dir) : [];
-if (count($tables) !== 3) {
-    fwrite(STDERR, "Uso: php app/import-cli.php <carpeta con TFAMILIES.DBF, tmatpr.DBF y ttarifcli.DBF>\n");
+if (array_diff_key(ERP_TABLES, $tables)) {
+    fwrite(STDERR, "Uso: php app/import-cli.php <carpeta con TFAMILIES.DBF, tmatpr.DBF y ttarifcli.DBF (y opcionalmente TCLIENT.DBF)>\n");
     exit(1);
 }
 db()->exec(file_get_contents(__DIR__ . '/schema.sql'));

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/catalog.php';
+
 function page_start(string $title): void
 {
     ?><!DOCTYPE html>
@@ -49,30 +51,41 @@ function site_header(string $active, array $access, array $user): void
     }
 }
 
-/**
- * Ventana "Datos Cliente". De momento solo hay el código y los descuentos: la ficha del cliente
- * (nombre, NIF, dirección, contacto) llegará cuando se cargue la tabla de clientes del ERP.
- */
+/** Ventana "Datos Cliente": ficha del cliente (TCLIENT del ERP) y sus descuentos por familia. */
 function customer_data_dialog(string $customer): void
 {
+    $c = customer_record($customer);
     $stmt = db()->prepare('SELECT COALESCE(f.name, d.family) AS name, d.dto FROM discounts d JOIN families f ON f.code = d.family WHERE d.customer_code = ? AND d.dto > 0 ORDER BY f.name');
     $stmt->execute([(int) $customer]);
     $families = $stmt->fetchAll();
-    $pending = '<span class="muted">Pendiente de cargar del ERP</span>';
+    $value = fn ($v) => $v === null || $v === '' ? '<span class="muted">—</span>' : e((string) $v);
+    $city = $c ? trim(($c['postcode'] ?? '') . ' ' . ($c['city'] ?? '')) : '';
+    $facts = [
+        'Código de cliente' => $customer,
+        'Nombre fiscal' => $c['fiscal_name'] ?? null,
+        'Nombre comercial' => $c['trade_name'] ?? null,
+        'Dirección' => $c['address'] ?? null,
+        'Población' => $city,
+        'Provincia' => $c['province'] ?? null,
+        'NIF' => $c['nif'] ?? null,
+        'Teléfono' => $c['phone'] ?? null,
+        'Email' => $c['email'] ?? null,
+        'Cuenta' => $c['account'] ?? null,
+        'IVA' => isset($c['vat']) ? percent((float) $c['vat']) : null,
+        'Recargo de equivalencia' => isset($c['req']) ? percent((float) $c['req']) : null,
+        'Comercial' => $c['sales_rep'] ?? null,
+        'Descuento 1' => $c ? percent((float) $c['dto1']) : null,
+        'Descuento 2' => $c ? percent((float) $c['dto2']) : null,
+    ];
     ?>
 <div class="modal" id="customer-data" hidden role="dialog" aria-modal="true" aria-labelledby="customer-data-title">
   <div class="modal-box">
     <button type="button" class="modal-close" data-close aria-label="Cerrar">×</button>
     <p class="eyebrow">DATOS CLIENTE</p>
-    <h2 id="customer-data-title">Cliente <?= e($customer) ?></h2>
+    <h2 id="customer-data-title"><?= e($c['trade_name'] ?? $c['fiscal_name'] ?? 'Cliente ' . $customer) ?></h2>
+    <?php if (!$c): ?><p class="muted">No hay ficha de este cliente en los datos cargados del ERP.</p><?php endif ?>
     <dl class="customer-facts">
-      <div><dt>Código de cliente</dt><dd><?= e($customer) ?></dd></div>
-      <div><dt>Nombre comercial</dt><dd><?= $pending ?></dd></div>
-      <div><dt>Nombre fiscal</dt><dd><?= $pending ?></dd></div>
-      <div><dt>NIF</dt><dd><?= $pending ?></dd></div>
-      <div><dt>Dirección</dt><dd><?= $pending ?></dd></div>
-      <div><dt>Teléfono</dt><dd><?= $pending ?></dd></div>
-      <div><dt>Email</dt><dd><?= $pending ?></dd></div>
+      <?php foreach ($facts as $label => $v): ?><div><dt><?= e($label) ?></dt><dd><?= $value($v) ?></dd></div><?php endforeach ?>
     </dl>
     <h3>Familias con descuento (<?= count($families) ?>)</h3>
     <ul class="customer-families">

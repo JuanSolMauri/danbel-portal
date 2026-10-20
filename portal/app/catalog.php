@@ -12,6 +12,14 @@ function brand_info(): array
     return $brands;
 }
 
+/** Ficha del cliente cargada de TCLIENT.DBF, o null si no está. */
+function customer_record(string $customer): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM customers WHERE code = ?');
+    $stmt->execute([(int) $customer]);
+    return $stmt->fetch() ?: null;
+}
+
 /** @return array<string, float> familia => % de descuento */
 function customer_discounts(string $customer): array
 {

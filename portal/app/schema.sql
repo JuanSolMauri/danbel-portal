@@ -38,6 +38,25 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   KEY idx_attempts (ip, attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS customers (
+  code INT NOT NULL PRIMARY KEY,
+  fiscal_name VARCHAR(200) NULL,
+  trade_name VARCHAR(100) NULL,
+  address VARCHAR(100) NULL,
+  postcode VARCHAR(15) NULL,
+  city VARCHAR(100) NULL,
+  province VARCHAR(50) NULL,
+  nif VARCHAR(20) NULL,
+  phone VARCHAR(25) NULL,
+  email VARCHAR(100) NULL,
+  account VARCHAR(40) NULL,
+  vat DECIMAL(5,2) NULL,
+  req DECIMAL(5,2) NULL,
+  sales_rep VARCHAR(100) NULL,
+  dto1 DECIMAL(5,2) NOT NULL DEFAULT 0,
+  dto2 DECIMAL(5,2) NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS imports (
   id INT AUTO_INCREMENT PRIMARY KEY,
   imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

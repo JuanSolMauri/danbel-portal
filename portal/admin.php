@@ -114,7 +114,7 @@ site_header('admin', $access, $user);
 
   <section class="customer-panel admin-panel">
     <h2>Actualizar datos del ERP</h2>
-    <p>Sube <strong>TFAMILIES.DBF</strong>, <strong>tmatpr.DBF</strong> y <strong>ttarifcli.DBF</strong>, sueltos o juntos en un ZIP. Se sustituyen familias, artículos y descuentos; las cuentas de acceso no se tocan.</p>
+    <p>Sube <strong>TFAMILIES.DBF</strong>, <strong>tmatpr.DBF</strong> y <strong>ttarifcli.DBF</strong>, y si quieres actualizar las fichas de cliente también <strong>tclient.DBF</strong>, sueltos o juntos en un ZIP. Se sustituyen familias, artículos, descuentos y fichas; las cuentas de acceso no se tocan.</p>
     <p class="muted">Última actualización: <?= $lastImport ? e($lastImport['imported_at']) . " · {$lastImport['families']} familias, {$lastImport['products']} artículos, {$lastImport['customers']} clientes" : 'todavía no se han cargado datos' ?>.
       Tamaño máximo de subida en este hosting: <?= e(ini_get('upload_max_filesize')) ?>.</p>
     <form method="post" enctype="multipart/form-data" class="admin-form">

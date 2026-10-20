@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/layout.php';
-require __DIR__ . '/app/catalog.php';
+require_once __DIR__ . '/app/catalog.php';
 
 $user = require_user();
 $access = resolve_access($user);
@@ -19,6 +19,8 @@ foreach ($families as $f) {
 $selected ??= $families[0] ?? null;
 $catalog = $selected ? family_catalog($selected['code'], (float) ($selected['discount'] ?? 0)) : null;
 $totalProducts = array_sum(array_column($families, 'count'));
+$record = $customer !== null ? customer_record($customer) : null;
+$extra = ['dto1' => (float) ($record['dto1'] ?? 0), 'dto2' => (float) ($record['dto2'] ?? 0)];
 $link = fn (string $family) => 'index.php?' . http_build_query(array_filter(['cliente' => $access['preview'], 'familia' => $family]));
 
 page_start('Danbel | Portal de clientes');
@@ -70,6 +72,7 @@ site_header('catalogo', $access, $user);
       data-brand="<?= e($selected['name']) ?>"
       data-customer="<?= e($customer ?? '') ?>"
       data-discount="<?= e(percent((float) ($selected['discount'] ?? 0))) ?>"
+      data-dto1="<?= e((string) $extra['dto1']) ?>" data-dto2="<?= e((string) $extra['dto2']) ?>"
       data-order-email="<?= e((string) config('order_email', '')) ?>">
       <div class="results-head">
         <div>
@@ -137,6 +140,8 @@ site_header('catalogo', $access, $user);
               <div><dt>Productos (P)</dt><dd data-sum="products">0,00 €</dd></div>
               <div><dt>Testers (T) a PVP</dt><dd data-sum="testers">0,00 €</dd></div>
               <div><dt>Testers gratis (hasta el 10% de los productos)</dt><dd data-sum="free">0,00 €</dd></div>
+              <?php if ($extra['dto1'] > 0): ?><div><dt>Descuento 1 (<?= e(percent($extra['dto1'])) ?>)</dt><dd data-sum="dto1">0,00 €</dd></div><?php endif ?>
+              <?php if ($extra['dto2'] > 0): ?><div><dt>Descuento 2 (<?= e(percent($extra['dto2'])) ?>)</dt><dd data-sum="dto2">0,00 €</dd></div><?php endif ?>
             </dl>
             <div class="order-actions">
               <div><small class="order-units">0 unidades seleccionadas</small><strong class="order-total">Total 0,00 €</strong></div>
@@ -177,6 +182,6 @@ site_header('catalogo', $access, $user);
   <?php endif ?>
 </main>
 <div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
-<script src="assets/portal.js?v=4"></script>
+<script src="assets/portal.js?v=5"></script>
 <?php
 page_end();
