@@ -88,6 +88,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ON DUPLICATE KEY UPDATE role = VALUES(role), customer_code = VALUES(customer_code), password_hash = VALUES(password_hash)')
                 ->execute([$login, $role, $role === 'customer' ? (int) $code : null, password_hash($password, PASSWORD_DEFAULT)]);
             $message = "Cuenta $login guardada.";
+        } elseif ($action === 'upload_photos') {
+            $file = $_FILES['fotos'] ?? null;
+            if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+                $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+                throw new RuntimeException("No se pudo recibir el fichero (código $code). Comprueba que no supera el límite de subida del hosting.");
+            }
+            if (!preg_match('/\.zip$/i', (string) $file['name'])) {
+                throw new RuntimeException('El fichero debe ser un ZIP.');
+            }
+            $zip = new ZipArchive();
+            if ($zip->open($file['tmp_name']) !== true) {
+                throw new RuntimeException('No se puede abrir el ZIP.');
+            }
+            $imageDir = __DIR__ . '/img/products';
+            $eanSet = array_flip(db()->query('SELECT ean FROM products WHERE ean IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN));
+            $useGd = extension_loaded('gd');
+            $linked = [];
+            $unknown = [];
+            $errors = [];
+
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $zipName = (string) $zip->getNameIndex($i);
+                $base = basename($zipName);
+                if (!preg_match('/\.(jpe?g|png|webp)$/i', $base, $m)) {
+                    continue;
+                }
+                $stem = pathinfo($base, PATHINFO_FILENAME);
+                $ext = strtolower($m[1] === 'jpeg' ? 'jpg' : $m[1]);
+                $data = $zip->getFromIndex($i);
+                if ($data === false || strlen($data) === 0) {
+                    $errors[] = $base;
+                    continue;
+                }
+                if ($useGd) {
+                    $img = @imagecreatefromstring($data);
+                    if ($img !== false) {
+                        $w = imagesx($img);
+                        $h = imagesy($img);
+                        if ($w > 1200 || $h > 1200) {
+                            $ratio = min(1200 / $w, 1200 / $h);
+                            $nw = (int) round($w * $ratio);
+                            $nh = (int) round($h * $ratio);
+                            $dst = imagecreatetruecolor($nw, $nh);
+                            imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                            ob_start();
+                            imagejpeg($dst, null, 85);
+                            $data = (string) ob_get_clean();
+                            imagedestroy($img);
+                            imagedestroy($dst);
+                            $ext = 'jpg';
+                        } else {
+                            imagedestroy($img);
+                        }
+                    }
+                }
+                if (file_put_contents("$imageDir/$stem.$ext", $data) === false) {
+                    $errors[] = $base;
+                    continue;
+                }
+                if (isset($eanSet[$stem])) {
+                    $linked[] = $stem;
+                } else {
+                    $unknown[] = $stem;
+                }
+            }
+            $zip->close();
+
+            $parts = [];
+            if ($linked) {
+                $parts[] = count($linked) . ' foto' . (count($linked) !== 1 ? 's' : '') . ' vinculada' . (count($linked) !== 1 ? 's' : '') . ' a productos';
+            }
+            if ($unknown) {
+                $preview = implode(', ', array_slice($unknown, 0, 5)) . (count($unknown) > 5 ? '…' : '');
+                $parts[] = count($unknown) . ' foto' . (count($unknown) !== 1 ? 's' : '') . ' sin artículo en el ERP (' . $preview . ')';
+            }
+            if ($errors) {
+                $parts[] = count($errors) . ' error' . (count($errors) !== 1 ? 'es' : '');
+            }
+            $message = $parts ? implode('; ', $parts) . '.' : 'El ZIP no contenía imágenes (jpg, png o webp).';
         } elseif ($action === 'delete_user') {
             $id = (int) ($_POST['id'] ?? 0);
             if ($id === (int) $user['id']) {
@@ -121,6 +200,17 @@ site_header('admin', $access, $user);
       <?= csrf_field() ?><input type="hidden" name="action" value="import">
       <input type="file" name="tablas[]" multiple accept=".dbf,.DBF,.zip" required>
       <button type="submit" class="btn">Actualizar datos</button>
+    </form>
+  </section>
+
+  <section class="customer-panel admin-panel">
+    <h2>Subir fotos de productos</h2>
+    <p>Sube un ZIP con las fotos en JPG, PNG o WebP. El nombre de cada fichero debe ser el <strong>código EAN</strong> del artículo (por ejemplo <code>4250588324807.jpg</code>). Las fotos se vinculan automáticamente al catálogo sin necesidad de reimportar los DBF. Si GD está disponible en el hosting, las imágenes de más de 1200 px se reducen al guardarlas.</p>
+    <p class="muted">Tamaño máximo de subida: <?= e(ini_get('upload_max_filesize')) ?>.</p>
+    <form method="post" enctype="multipart/form-data" class="admin-form">
+      <?= csrf_field() ?><input type="hidden" name="action" value="upload_photos">
+      <input type="file" name="fotos" accept=".zip" required>
+      <button type="submit" class="btn">Subir fotos</button>
     </form>
   </section>
 

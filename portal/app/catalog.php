@@ -50,12 +50,20 @@ function visible_families(?string $customer): array
 /** Artículos de una familia con su precio neto, agrupados en secciones. */
 function family_catalog(string $family, float $discount): array
 {
-    $stmt = db()->prepare('SELECT code, line_name, name, ean, pvp, base_price, image, tester FROM products WHERE family = ? ORDER BY line_name, name');
+    $stmt = db()->prepare('SELECT code, line_name, name, ean, pvp, base_price, tester FROM products WHERE family = ? ORDER BY line_name, name');
     $stmt->execute([$family]);
+
+    // Escanea img/products/ una sola vez para mapear EAN → ruta relativa.
+    $photos = [];
+    foreach (glob(__DIR__ . '/../img/products/*') ?: [] as $file) {
+        $photos[pathinfo($file, PATHINFO_FILENAME)] = 'img/products/' . basename($file);
+    }
+
     $products = [];
     foreach ($stmt->fetchAll() as $p) {
         $base = (float) $p['base_price'];
         $tester = (bool) $p['tester'];
+        $ean = $p['ean'] ?? '';
         $products[$p['code']] = [
             'code' => $p['code'],
             'line' => $p['line_name'],
@@ -64,7 +72,7 @@ function family_catalog(string $family, float $discount): array
             'pvp' => $p['pvp'] !== null ? (float) $p['pvp'] : null,
             'base' => $base,
             'net' => $tester ? (float) $p['pvp'] : round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON, 2),
-            'image' => $p['image'],
+            'image' => $ean !== '' ? ($photos[$ean] ?? null) : null,
             'tester' => $tester,
         ];
     }
