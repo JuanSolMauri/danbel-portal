@@ -57,8 +57,9 @@ function col_to_index(string $col): int
 }
 
 /**
- * Lee un fichero de stock (.xlsx o .csv) y devuelve ['code' => qty].
- * Busca las columnas por nombre de cabecera (CODI y STOCK), en cualquier orden.
+ * Lee un fichero de stock (.xlsx o .csv).
+ * Devuelve [$key_type, $data] donde $key_type es 'code' (columna CODI) o 'ean' (columna EAN).
+ * Si hay CODI tiene prioridad sobre EAN.
  */
 function read_stock_file(string $path, string $filename): array
 {
@@ -71,6 +72,7 @@ function read_stock_file(string $path, string $filename): array
     throw new RuntimeException('El fichero debe ser .xlsx o .csv.');
 }
 
+/** @return array{0:'code'|'ean', 1:array<string,int>} */
 function read_stock_csv(string $path): array
 {
     $handle = fopen($path, 'r');
@@ -80,33 +82,32 @@ function read_stock_csv(string $path): array
     $raw = fgets($handle);
     rewind($handle);
     $sep = substr_count((string) $raw, ';') >= substr_count((string) $raw, ',') ? ';' : ',';
-    $codiCol = $stockCol = null;
+    $codiCol = $stockCol = $eanCol = null;
     $result = [];
     while (($row = fgetcsv($handle, 0, $sep)) !== false) {
-        if ($codiCol === null) {
+        if ($codiCol === null && $eanCol === null) {
             foreach ($row as $i => $v) {
                 $u = strtoupper(trim((string) $v));
-                if ($u === 'CODI') {
-                    $codiCol = $i;
-                }
-                if ($u === 'STOCK') {
-                    $stockCol = $i;
-                }
+                if ($u === 'CODI') $codiCol = $i;
+                if ($u === 'EAN' || $u === 'BARRES') $eanCol = $i;
+                if ($u === 'STOCK') $stockCol = $i;
             }
-            if ($codiCol === null || $stockCol === null) {
-                throw new RuntimeException('El CSV necesita las columnas CODI y STOCK.');
+            if ($stockCol === null || ($codiCol === null && $eanCol === null)) {
+                throw new RuntimeException('El CSV necesita la columna STOCK y al menos CODI o EAN.');
             }
             continue;
         }
-        $code = trim($row[$codiCol] ?? '');
-        if ($code !== '') {
-            $result[$code] = (int) ($row[$stockCol] ?? 0);
+        $keyCol = $codiCol ?? $eanCol;
+        $key = trim($row[$keyCol] ?? '');
+        if ($key !== '') {
+            $result[$key] = (int) ($row[$stockCol] ?? 0);
         }
     }
     fclose($handle);
-    return $result;
+    return [$codiCol !== null ? 'code' : 'ean', $result];
 }
 
+/** @return array{0:'code'|'ean', 1:array<string,int>} */
 function read_stock_xlsx(string $path): array
 {
     $zip = new ZipArchive();
@@ -136,7 +137,7 @@ function read_stock_xlsx(string $path): array
     $sheetXml = (string) preg_replace('/\s+\w+:\w+(?:="[^"]*")?/', '', $sheetXml);
     $sheetXml = (string) preg_replace('/\s+xmlns="[^"]*"/', '', $sheetXml);
     $sheet = new SimpleXMLElement($sheetXml, LIBXML_NOERROR | LIBXML_NOWARNING);
-    $codiCol = $stockCol = null;
+    $codiCol = $stockCol = $eanCol = null;
     $result = [];
     foreach ($sheet->sheetData->row as $row) {
         $cells = [];
@@ -150,30 +151,28 @@ function read_stock_xlsx(string $path): array
             }
             $cells[$idx] = $val;
         }
-        if ($codiCol === null) {
+        if ($codiCol === null && $eanCol === null) {
             foreach ($cells as $idx => $v) {
                 $u = strtoupper(trim($v));
-                if ($u === 'CODI') {
-                    $codiCol = $idx;
-                }
-                if ($u === 'STOCK') {
-                    $stockCol = $idx;
-                }
+                if ($u === 'CODI') $codiCol = $idx;
+                if ($u === 'EAN' || $u === 'BARRES') $eanCol = $idx;
+                if ($u === 'STOCK') $stockCol = $idx;
             }
-            if ($codiCol === null || $stockCol === null) {
+            if ($stockCol !== null && ($codiCol !== null || $eanCol !== null)) {
                 continue;
             }
             continue;
         }
-        $code = trim($cells[$codiCol] ?? '');
-        if ($code !== '') {
-            $result[$code] = (int) ($cells[$stockCol] ?? 0);
+        $keyCol = $codiCol ?? $eanCol;
+        $key = trim($cells[$keyCol] ?? '');
+        if ($key !== '') {
+            $result[$key] = (int) ($cells[$stockCol] ?? 0);
         }
     }
-    if ($codiCol === null) {
-        throw new RuntimeException('No se encontraron las columnas CODI y STOCK en el Excel.');
+    if ($codiCol === null && $eanCol === null) {
+        throw new RuntimeException('No se encontraron las columnas CODI (o EAN) y STOCK en el Excel.');
     }
-    return $result;
+    return [$codiCol !== null ? 'code' : 'ean', $result];
 }
 
 function remove_dir(string $dir): void
@@ -224,9 +223,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
                 throw new RuntimeException("No se pudo recibir el fichero (código $code).");
             }
-            $data = read_stock_file($file['tmp_name'], (string) $file['name']);
+            [$keyType, $data] = read_stock_file($file['tmp_name'], (string) $file['name']);
             if (!$data) {
                 throw new RuntimeException('No se encontraron artículos en el fichero.');
+            }
+            // Si las claves son EAN, resuelve el código de artículo correspondiente.
+            if ($keyType === 'ean') {
+                $eans = array_keys($data);
+                $ph = implode(',', array_fill(0, count($eans), '?'));
+                $s = db()->prepare("SELECT ean, code FROM products WHERE ean IN ($ph)");
+                $s->execute($eans);
+                $byEan = $s->fetchAll(PDO::FETCH_KEY_PAIR);
+                $resolved = [];
+                foreach ($data as $ean => $qty) {
+                    if (isset($byEan[$ean])) {
+                        $resolved[$byEan[$ean]] = $qty;
+                    }
+                }
+                $data = $resolved;
+            }
+            if (!$data) {
+                throw new RuntimeException('Ningún EAN del fichero coincide con artículos del catálogo.');
             }
             // Crea la tabla si todavía no existe (por si el portal se instaló antes de esta versión).
             db()->exec("CREATE TABLE IF NOT EXISTS stock (
@@ -363,7 +380,7 @@ site_header('admin', $access, $user);
 
   <section class="customer-panel admin-panel">
     <h2>Actualizar stock</h2>
-    <p>Sube el fichero de stock en <strong>.xlsx</strong> o <strong>.csv</strong>. Debe tener las columnas <code>CODI</code> y <code>STOCK</code>. El stock se actualiza artículo a artículo; los artículos no incluidos en el fichero conservan su stock anterior.</p>
+    <p>Sube el fichero de stock en <strong>.xlsx</strong> o <strong>.csv</strong>. Debe tener la columna <code>STOCK</code> y al menos una columna de referencia: <code>CODI</code> (código de artículo) o <code>EAN</code> (código de barras). Si hay ambas, se usa CODI. El stock se actualiza artículo a artículo; los no incluidos conservan su stock anterior.</p>
     <form method="post" enctype="multipart/form-data" class="admin-form">
       <?= csrf_field() ?><input type="hidden" name="action" value="upload_stock">
       <input type="file" name="stock" accept=".xlsx,.csv" required>
