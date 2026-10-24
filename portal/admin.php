@@ -46,6 +46,136 @@ function receive_uploads(string $dir): void
     }
 }
 
+/** Convierte la letra(s) de columna Excel en índice 0-based (A→0, B→1, Z→25, AA→26…). */
+function col_to_index(string $col): int
+{
+    $idx = 0;
+    foreach (str_split(strtoupper($col)) as $ch) {
+        $idx = $idx * 26 + (ord($ch) - 64);
+    }
+    return $idx - 1;
+}
+
+/**
+ * Lee un fichero de stock (.xlsx o .csv) y devuelve ['code' => qty].
+ * Busca las columnas por nombre de cabecera (CODI y STOCK), en cualquier orden.
+ */
+function read_stock_file(string $path, string $filename): array
+{
+    if (preg_match('/\.csv$/i', $filename)) {
+        return read_stock_csv($path);
+    }
+    if (preg_match('/\.xlsx$/i', $filename)) {
+        return read_stock_xlsx($path);
+    }
+    throw new RuntimeException('El fichero debe ser .xlsx o .csv.');
+}
+
+function read_stock_csv(string $path): array
+{
+    $handle = fopen($path, 'r');
+    if (!$handle) {
+        throw new RuntimeException('No se puede abrir el CSV.');
+    }
+    $raw = fgets($handle);
+    rewind($handle);
+    $sep = substr_count((string) $raw, ';') >= substr_count((string) $raw, ',') ? ';' : ',';
+    $codiCol = $stockCol = null;
+    $result = [];
+    while (($row = fgetcsv($handle, 0, $sep)) !== false) {
+        if ($codiCol === null) {
+            foreach ($row as $i => $v) {
+                $u = strtoupper(trim((string) $v));
+                if ($u === 'CODI') {
+                    $codiCol = $i;
+                }
+                if ($u === 'STOCK') {
+                    $stockCol = $i;
+                }
+            }
+            if ($codiCol === null || $stockCol === null) {
+                throw new RuntimeException('El CSV necesita las columnas CODI y STOCK.');
+            }
+            continue;
+        }
+        $code = trim($row[$codiCol] ?? '');
+        if ($code !== '') {
+            $result[$code] = (int) ($row[$stockCol] ?? 0);
+        }
+    }
+    fclose($handle);
+    return $result;
+}
+
+function read_stock_xlsx(string $path): array
+{
+    $zip = new ZipArchive();
+    if ($zip->open($path) !== true) {
+        throw new RuntimeException('No se puede abrir el Excel.');
+    }
+    $strings = [];
+    $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($ssXml !== false) {
+        $ssXml = (string) preg_replace('/\s+\w+:\w+(?:="[^"]*")?/', '', $ssXml);
+        $ssXml = (string) preg_replace('/\s+xmlns="[^"]*"/', '', $ssXml);
+        $ss = new SimpleXMLElement($ssXml, LIBXML_NOERROR | LIBXML_NOWARNING);
+        foreach ($ss->si as $si) {
+            $text = '';
+            foreach ($si->xpath('.//t') as $t) {
+                $text .= (string) $t;
+            }
+            $strings[] = $text;
+        }
+    }
+    $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+    $zip->close();
+    if ($sheetXml === false) {
+        throw new RuntimeException('No se encuentra la hoja del Excel.');
+    }
+    // Elimina namespaces y atributos prefijados para que SimpleXMLElement pueda parsear el XML.
+    $sheetXml = (string) preg_replace('/\s+\w+:\w+(?:="[^"]*")?/', '', $sheetXml);
+    $sheetXml = (string) preg_replace('/\s+xmlns="[^"]*"/', '', $sheetXml);
+    $sheet = new SimpleXMLElement($sheetXml, LIBXML_NOERROR | LIBXML_NOWARNING);
+    $codiCol = $stockCol = null;
+    $result = [];
+    foreach ($sheet->sheetData->row as $row) {
+        $cells = [];
+        foreach ($row->c as $cell) {
+            preg_match('/^([A-Z]+)/', (string) $cell['r'], $m);
+            $idx = col_to_index($m[1]);
+            $type = (string) $cell['t'];
+            $val = (string) $cell->v;
+            if ($type === 's') {
+                $val = $strings[(int) $val] ?? '';
+            }
+            $cells[$idx] = $val;
+        }
+        if ($codiCol === null) {
+            foreach ($cells as $idx => $v) {
+                $u = strtoupper(trim($v));
+                if ($u === 'CODI') {
+                    $codiCol = $idx;
+                }
+                if ($u === 'STOCK') {
+                    $stockCol = $idx;
+                }
+            }
+            if ($codiCol === null || $stockCol === null) {
+                continue;
+            }
+            continue;
+        }
+        $code = trim($cells[$codiCol] ?? '');
+        if ($code !== '') {
+            $result[$code] = (int) ($cells[$stockCol] ?? 0);
+        }
+    }
+    if ($codiCol === null) {
+        throw new RuntimeException('No se encontraron las columnas CODI y STOCK en el Excel.');
+    }
+    return $result;
+}
+
 function remove_dir(string $dir): void
 {
     foreach (glob("$dir/*") ?: [] as $file) {
@@ -88,6 +218,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ON DUPLICATE KEY UPDATE role = VALUES(role), customer_code = VALUES(customer_code), password_hash = VALUES(password_hash)')
                 ->execute([$login, $role, $role === 'customer' ? (int) $code : null, password_hash($password, PASSWORD_DEFAULT)]);
             $message = "Cuenta $login guardada.";
+        } elseif ($action === 'upload_stock') {
+            $file = $_FILES['stock'] ?? null;
+            if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
+                $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+                throw new RuntimeException("No se pudo recibir el fichero (código $code).");
+            }
+            $data = read_stock_file($file['tmp_name'], (string) $file['name']);
+            if (!$data) {
+                throw new RuntimeException('No se encontraron artículos en el fichero.');
+            }
+            // Crea la tabla si todavía no existe (por si el portal se instaló antes de esta versión).
+            db()->exec("CREATE TABLE IF NOT EXISTS stock (
+                code VARCHAR(20) NOT NULL PRIMARY KEY,
+                qty INT NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            $stmt = db()->prepare('INSERT INTO stock (code, qty) VALUES (?, ?) ON DUPLICATE KEY UPDATE qty = VALUES(qty), updated_at = CURRENT_TIMESTAMP');
+            db()->beginTransaction();
+            try {
+                foreach ($data as $code => $qty) {
+                    $stmt->execute([$code, $qty]);
+                }
+                db()->commit();
+            } catch (Throwable $e) {
+                db()->rollBack();
+                throw $e;
+            }
+            $message = 'Stock actualizado: ' . count($data) . ' artículos.';
         } elseif ($action === 'upload_photos') {
             $file = $_FILES['fotos'] ?? null;
             if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
@@ -200,6 +358,16 @@ site_header('admin', $access, $user);
       <?= csrf_field() ?><input type="hidden" name="action" value="import">
       <input type="file" name="tablas[]" multiple accept=".dbf,.DBF,.zip" required>
       <button type="submit" class="btn">Actualizar datos</button>
+    </form>
+  </section>
+
+  <section class="customer-panel admin-panel">
+    <h2>Actualizar stock</h2>
+    <p>Sube el fichero de stock en <strong>.xlsx</strong> o <strong>.csv</strong>. Debe tener las columnas <code>CODI</code> y <code>STOCK</code>. El stock se actualiza artículo a artículo; los artículos no incluidos en el fichero conservan su stock anterior.</p>
+    <form method="post" enctype="multipart/form-data" class="admin-form">
+      <?= csrf_field() ?><input type="hidden" name="action" value="upload_stock">
+      <input type="file" name="stock" accept=".xlsx,.csv" required>
+      <button type="submit" class="btn">Actualizar stock</button>
     </form>
   </section>
 

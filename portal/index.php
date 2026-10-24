@@ -105,10 +105,10 @@ site_header('catalogo', $access, $user);
               <div class="sergio-section-content">
                 <div class="order-table-scroll">
                   <table class="order-table">
-                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Unidades</th><th>Total</th></tr></thead>
+                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Stock</th><th>Unidades</th><th>Total</th></tr></thead>
                     <tbody>
                     <?php foreach ($section['codes'] as $code): $p = $catalog['products'][$code]; ?>
-                      <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>"
+                      <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>" data-stock="<?= $p['stock'] ?>"
                           data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>">
                         <td><?= e($p['ean'] ?? '—') ?><small><?= e($p['code']) ?></small></td>
                         <td><div class="order-product-cell"><?php if ($p['image']): ?><button type="button" class="zoom-photo" data-zoom="<?= e($p['image']) ?>" aria-label="Ampliar foto de <?= e($p['name']) ?>"><img src="<?= e($p['image']) ?>" alt="" loading="lazy"></button><?php endif ?><span><?= e($p['name']) ?></span></div></td>
@@ -121,6 +121,7 @@ site_header('catalogo', $access, $user);
                         <td><?= e(percent((float) ($selected['discount'] ?? 0))) ?></td>
                         <?php endif ?>
                         <td><strong><?= euro($p['net']) ?></strong></td>
+                        <td><?= $p['stock'] > 0 ? $p['stock'] : '<span class="muted">—</span>' ?></td>
                         <td><input type="number" min="0" max="100000" step="1" inputmode="numeric" value="0" aria-label="Unidades de <?= e($p['name']) ?>"></td>
                         <td class="line-total">0,00 €</td>
                       </tr>
