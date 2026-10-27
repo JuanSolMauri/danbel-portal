@@ -13,4 +13,6 @@ return [
     'install_token' => 'cambia-esto-por-un-texto-largo-y-aleatorio',
     // Dirección a la que los clientes envían los pedidos (se rellena en el correo).
     'order_email' => '',
+    // Códigos de cliente que pueden ver la columna Stock (además del administrador).
+    'stock_visible_clients' => ['5825'],
 ];

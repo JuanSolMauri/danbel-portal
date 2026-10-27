@@ -128,6 +128,16 @@ function require_admin(): array
     return $user;
 }
 
+/** Devuelve true si el usuario puede ver la columna Stock. */
+function can_see_stock(array $access): bool
+{
+    if ($access['admin']) {
+        return true;
+    }
+    $allowed = array_map('strval', config('stock_visible_clients', []));
+    return $access['customer'] !== null && in_array($access['customer'], $allowed, true);
+}
+
 /**
  * Cliente cuyo catálogo se muestra. El administrador puede ver el de cualquiera con ?cliente=CODIGO;
  * sin código ve todas las familias a precio de tarifa.

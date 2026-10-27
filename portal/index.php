@@ -21,6 +21,7 @@ $catalog = $selected ? family_catalog($selected['code'], (float) ($selected['dis
 $totalProducts = array_sum(array_column($families, 'count'));
 $record = $customer !== null ? customer_record($customer) : null;
 $extra = ['dto1' => (float) ($record['dto1'] ?? 0), 'dto2' => (float) ($record['dto2'] ?? 0)];
+$showStock = can_see_stock($access);
 $link = fn (string $family) => 'index.php?' . http_build_query(array_filter(['cliente' => $access['preview'], 'familia' => $family]));
 
 page_start('Danbel | Portal de clientes');
@@ -105,7 +106,7 @@ site_header('catalogo', $access, $user);
               <div class="sergio-section-content">
                 <div class="order-table-scroll">
                   <table class="order-table">
-                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><th>Stock</th><th>Unidades</th><th>Total</th></tr></thead>
+                    <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><?php if ($showStock): ?><th>Stock</th><?php endif ?><th>Unidades</th><th>Total</th></tr></thead>
                     <tbody>
                     <?php foreach ($section['codes'] as $code): $p = $catalog['products'][$code]; ?>
                       <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>" data-stock="<?= $p['stock'] ?>"
@@ -121,7 +122,7 @@ site_header('catalogo', $access, $user);
                         <td><?= e(percent((float) ($selected['discount'] ?? 0))) ?></td>
                         <?php endif ?>
                         <td><strong><?= euro($p['net']) ?></strong></td>
-                        <td><?= $p['stock'] > 0 ? $p['stock'] : '<span class="muted">—</span>' ?></td>
+                        <?php if ($showStock): ?><td><?= $p['stock'] > 0 ? $p['stock'] : '<span class="muted">—</span>' ?></td><?php endif ?>
                         <td><input type="number" min="0" max="100000" step="1" inputmode="numeric" value="0" aria-label="Unidades de <?= e($p['name']) ?>"></td>
                         <td class="line-total">0,00 €</td>
                       </tr>
