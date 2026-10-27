@@ -33,9 +33,6 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
 {
     @set_time_limit(600);
 
-    // Migración: añadir columna obsolete si no existe aún.
-    try { $db->exec('ALTER TABLE products ADD COLUMN obsolete TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
-
     $families = [];
     foreach ((new DbfReader($tables['families']))->rows() as $r) {
         // Solo las familias activas en el ERP (ACTIU = 1; 2 es inactiva).
