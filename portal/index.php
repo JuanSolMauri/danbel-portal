@@ -149,9 +149,8 @@ site_header('catalogo', $access, $user);
               <div><small class="order-units">0 unidades seleccionadas</small><strong class="order-total">Total 0,00 €</strong></div>
               <button type="button" class="btn btn-outline" data-action="clear" disabled>Vaciar</button>
               <button type="button" class="btn btn-outline" data-action="copy" disabled>Copiar pedido</button>
-              <button type="button" class="btn" data-action="email" disabled>Preparar correo</button>
+              <button type="button" class="btn" data-action="checkout" disabled>Finalizar compra</button>
             </div>
-            <p class="mail-note">Se abrirá tu aplicación de correo con el pedido escrito. Revisa el destinatario y pulsa Enviar.</p>
           </div>
         </section>
       </div>
@@ -183,7 +182,33 @@ site_header('catalogo', $access, $user);
   <p class="portal-note">El pedido se prepara en la página y se envía por correo a Danbel. IVA y transporte según las condiciones comerciales acordadas.</p>
   <?php endif ?>
 </main>
+<div class="checkout-overlay" id="checkout" hidden>
+  <div class="checkout-head">
+    <button type="button" class="btn btn-outline btn-sm" id="checkout-back">&#8592; Volver</button>
+    <div>
+      <h2>Resumen del pedido</h2>
+      <p class="checkout-meta-text" id="checkout-meta"></p>
+    </div>
+  </div>
+  <div class="checkout-body">
+    <div class="checkout-table-wrap">
+      <table class="order-table">
+        <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>Precio neto</th><th>Uds.</th><th>Total</th></tr></thead>
+        <tbody id="checkout-lines"></tbody>
+      </table>
+    </div>
+    <div class="checkout-breakdown">
+      <dl class="checkout-dl" id="checkout-sums"></dl>
+      <div id="checkout-notes-section"></div>
+      <p class="mail-note">IVA y transporte según las condiciones comerciales acordadas.</p>
+    </div>
+    <div class="checkout-actions">
+      <button type="button" class="btn btn-outline" id="checkout-back2">&#8592; Volver al catálogo</button>
+      <button type="button" class="btn" id="checkout-send">Enviar pedido por correo</button>
+    </div>
+  </div>
+</div>
 <div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
-<script src="assets/portal.js?v=5"></script>
+<script src="assets/portal.js?v=6"></script>
 <?php
 page_end();

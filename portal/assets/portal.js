@@ -165,17 +165,57 @@
     });
   });
 
-  results.querySelector('[data-action="email"]').addEventListener("click", function () {
-    var d = results.dataset;
-    var subject = "Pedido " + d.brand + " · Cliente " + (d.customer || "sin código");
-    window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(orderText());
-  });
-
   results.querySelector('[data-action="clear"]').addEventListener("click", function () {
     if (!confirm("¿Vaciar las unidades de esta familia?")) return;
     rows.forEach(function (tr) { tr.querySelector("input").value = 0; });
     update();
   });
+
+  // Pantalla de resumen (Finalizar compra)
+  var checkout = document.getElementById("checkout");
+  if (checkout) {
+    var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+
+    function openCheckout() {
+      var o = update();
+      var d = results.dataset;
+      document.getElementById("checkout-meta").textContent = d.brand + " · Cliente " + (d.customer || "admin") + " · " + new Date().toLocaleDateString("es-ES");
+      document.getElementById("checkout-lines").innerHTML = o.chosen.map(function (l) {
+        return "<tr>" +
+          "<td>" + esc(l.ean || "—") + "<small>" + esc(l.code) + "</small></td>" +
+          "<td>" + esc(l.name) + "</td>" +
+          "<td><span class='type-badge type-" + (l.type === "T" ? "t" : "p") + "'>" + l.type + "</span></td>" +
+          "<td>" + euro.format(l.net) + "</td>" +
+          "<td>" + l.qty + "</td>" +
+          "<td><strong>" + euro.format(l.total) + "</strong></td>" +
+          "</tr>";
+      }).join("");
+      var s = o.sums;
+      var sumRows = [["Productos (P)", euro.format(s.products)], ["Testers (T) a PVP", euro.format(s.testers)]];
+      if (s.free > 0) sumRows.push(["Testers gratis (hasta el 10% de productos)", "− " + euro.format(s.free)]);
+      if (dto1 && s.d1 > 0) sumRows.push(["Descuento 1 (" + dto1.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d1)]);
+      if (dto2 && s.d2 > 0) sumRows.push(["Descuento 2 (" + dto2.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d2)]);
+      document.getElementById("checkout-sums").innerHTML = sumRows.map(function (r) {
+        return "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>";
+      }).join("") + "<div class='checkout-total'><dt>Total (sin IVA)</dt><dd>" + euro.format(o.total) + "</dd></div>";
+      var noteText = notes.value.trim();
+      document.getElementById("checkout-notes-section").innerHTML = noteText ? "<p class='checkout-notes-text'><strong>Observaciones:</strong> " + esc(noteText) + "</p>" : "";
+      checkout.hidden = false;
+      checkout.scrollTop = 0;
+    }
+
+    function closeCheckout() { checkout.hidden = true; }
+
+    results.querySelector('[data-action="checkout"]').addEventListener("click", openCheckout);
+    document.getElementById("checkout-back").addEventListener("click", closeCheckout);
+    document.getElementById("checkout-back2").addEventListener("click", closeCheckout);
+    document.getElementById("checkout-send").addEventListener("click", function () {
+      closeCheckout();
+      var d = results.dataset;
+      var subject = "Pedido " + d.brand + " · Cliente " + (d.customer || "sin código");
+      window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(orderText());
+    });
+  }
 
   update();
 })();
