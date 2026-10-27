@@ -48,7 +48,7 @@ function visible_families(?string $customer): array
     // Familia virtual: artículos obsoletos con stock disponible.
     $liqCount = (int) db()->query('SELECT COUNT(*) FROM products p JOIN stock s ON s.code = p.code WHERE p.obsolete = 1 AND s.qty > 0')->fetchColumn();
     if ($liqCount > 0) {
-        $out[] = ['code' => '_LIQUIDACION', 'name' => 'En liquidación', 'count' => $liqCount, 'discount' => null];
+        $out[] = ['code' => '_LIQUIDACION', 'name' => 'EN LIQUIDACIÓN', 'count' => $liqCount, 'discount' => null];
     }
 
     return $out;

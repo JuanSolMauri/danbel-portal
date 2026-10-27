@@ -35,10 +35,10 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
 
     $families = [];
     foreach ((new DbfReader($tables['families']))->rows() as $r) {
-        // Solo las familias activas en el ERP (ACTIU = 1; 2 es inactiva).
+        // Activas (ACTIU=1) y las inactivas (ACTIU=2) que pueden tener stock en liquidación.
         $code = trim((string) $r['CODI']);
-        if ($code !== '' && (int) $r['ACTIU'] === 1) {
-            $families[$code] = trim((string) $r['DESCRICPIO']);
+        if ($code !== '' && in_array((int) $r['ACTIU'], [1, 2], true)) {
+            $families[$code] = ['name' => trim((string) $r['DESCRICPIO']), 'active' => (int) $r['ACTIU'] === 1];
         }
     }
 
@@ -62,6 +62,8 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         }
         $ean = trim((string) $r['BARRES']);
         $code = trim((string) $r['CODI']);
+        // Productos de familia inactiva o con OBSOLET se marcan como obsolete=1 (van a EN LIQUIDACIÓN).
+        $obsolete = (!$families[$family]['active'] || $r['OBSOLET']) ? 1 : 0;
         $products[$code] = [
             $code,
             $family,
@@ -72,7 +74,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             round((float) $r['PREUTARIFA'], 2),
             $ean !== '' ? ($photos[$ean] ?? null) : null,
             $tester ? 1 : 0,
-            $r['OBSOLET'] ? 1 : 0,
+            $obsolete,
         ];
     }
 
@@ -105,7 +107,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             $db->exec('DELETE FROM customers');
             insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], read_customers($tables['customers']));
         }
-        insert_rows($db, 'families', ['code', 'name'], array_map(null, array_keys($families), array_values($families)));
+        insert_rows($db, 'families', ['code', 'name'], array_map(fn($code, $f) => [$code, $f['name']], array_keys($families), array_values($families)));
         insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete'], array_values($products));
         $rows = [];
         foreach ($discounts as $key => $dto) {
