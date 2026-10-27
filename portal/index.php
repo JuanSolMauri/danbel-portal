@@ -17,11 +17,12 @@ foreach ($families as $f) {
     }
 }
 $selected ??= $families[0] ?? null;
-$catalog = $selected ? family_catalog($selected['code'], (float) ($selected['discount'] ?? 0)) : null;
+$isLiquidation = $selected && $selected['code'] === '_LIQUIDACION';
+$catalog = $selected ? ($isLiquidation ? liquidation_catalog($customer) : family_catalog($selected['code'], (float) ($selected['discount'] ?? 0))) : null;
 $totalProducts = array_sum(array_column($families, 'count'));
 $record = $customer !== null ? customer_record($customer) : null;
 $extra = ['dto1' => (float) ($record['dto1'] ?? 0), 'dto2' => (float) ($record['dto2'] ?? 0)];
-$showStock = can_see_stock($access);
+$showStock = $isLiquidation || can_see_stock($access);
 $link = fn (string $family) => 'index.php?' . http_build_query(array_filter(['cliente' => $access['preview'], 'familia' => $family]));
 
 page_start('Danbel | Portal de clientes');
@@ -95,7 +96,7 @@ site_header('catalogo', $access, $user);
               <?php if ($catalog['logo']): ?><img class="sergio-logo" src="<?= e($catalog['logo']) ?>" alt="<?= e($selected['name']) ?>"><?php endif ?>
               <span class="sheet-eyebrow">TARIFA DANBEL</span>
               <strong>Pedido por líneas</strong>
-              <p><?= $overview ? 'Precios de tarifa sin descuento.' : 'Precios con tu descuento aplicado.' ?> Los testers (T) van a PVP y son gratis hasta el 10% del importe de los productos (P). Indica las unidades en cada línea.</p>
+              <p><?= $isLiquidation ? 'Artículos obsoletos con stock disponible. Precio con tu descuento habitual por marca.' : ($overview ? 'Precios de tarifa sin descuento.' : 'Precios con tu descuento aplicado.') ?> Los testers (T) van a PVP y son gratis hasta el 10% del importe de los productos (P). Indica las unidades en cada línea.</p>
             </div>
             <span class="order-summary">0 productos · 0,00 €</span>
           </div>
@@ -209,6 +210,6 @@ site_header('catalogo', $access, $user);
   </div>
 </div>
 <div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
-<script src="assets/portal.js?v=6"></script>
+<script src="assets/portal.js?v=7"></script>
 <?php
 page_end();

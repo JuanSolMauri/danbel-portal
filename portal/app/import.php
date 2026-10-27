@@ -33,6 +33,9 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
 {
     @set_time_limit(600);
 
+    // Migración: añadir columna obsolete si no existe aún.
+    try { $db->exec('ALTER TABLE products ADD COLUMN obsolete TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+
     $families = [];
     foreach ((new DbfReader($tables['families']))->rows() as $r) {
         // Solo las familias activas en el ERP (ACTIU = 1; 2 es inactiva).
@@ -49,10 +52,11 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
 
     $products = [];
     foreach ((new DbfReader($tables['products']))->rows() as $r) {
-        // Artículo publicable: activo, no obsoleto, en uso y visible. Los testers (marcados REGAL y sin
-        // precio de tarifa) se venden a PVP y necesitan PVP; el resto necesita precio de tarifa.
+        // Artículo publicable: activo, en uso y visible. Los testers (marcados REGAL y sin precio de
+        // tarifa) se venden a PVP y necesitan PVP; el resto necesita precio de tarifa.
+        // Los artículos obsoletos (OBSOLET) se incluyen para la familia virtual "En liquidación".
         $tester = $r['REGAL'] === true && !$r['PREUTARIFA'];
-        if (!$r['ACT'] || $r['OBSOLET'] || $r['NOUSAR'] || $r['NOVIS'] || !($tester ? $r['PVP'] : $r['PREUTARIFA'])) {
+        if (!$r['ACT'] || $r['NOUSAR'] || $r['NOVIS'] || !($tester ? $r['PVP'] : $r['PREUTARIFA'])) {
             continue;
         }
         $family = trim((string) $r['FAMILIA']);
@@ -71,6 +75,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             round((float) $r['PREUTARIFA'], 2),
             $ean !== '' ? ($photos[$ean] ?? null) : null,
             $tester ? 1 : 0,
+            $r['OBSOLET'] ? 1 : 0,
         ];
     }
 
@@ -104,7 +109,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], read_customers($tables['customers']));
         }
         insert_rows($db, 'families', ['code', 'name'], array_map(null, array_keys($families), array_values($families)));
-        insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester'], array_values($products));
+        insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete'], array_values($products));
         $rows = [];
         foreach ($discounts as $key => $dto) {
             [$customer, $family] = explode('|', $key, 2);

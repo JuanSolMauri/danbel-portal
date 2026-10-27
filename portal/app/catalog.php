@@ -34,7 +34,7 @@ function customer_discounts(string $customer): array
  */
 function visible_families(?string $customer): array
 {
-    $rows = db()->query('SELECT f.code, f.name, COUNT(*) AS count FROM families f JOIN products p ON p.family = f.code GROUP BY f.code, f.name ORDER BY f.name')->fetchAll();
+    $rows = db()->query('SELECT f.code, f.name, COUNT(*) AS count FROM families f JOIN products p ON p.family = f.code WHERE p.obsolete = 0 GROUP BY f.code, f.name ORDER BY f.name')->fetchAll();
     $discounts = $customer !== null ? customer_discounts($customer) : null;
     $out = [];
     foreach ($rows as $row) {
@@ -44,13 +44,66 @@ function visible_families(?string $customer): array
         }
         $out[] = ['code' => $row['code'], 'name' => $row['name'], 'count' => (int) $row['count'], 'discount' => $discount];
     }
+
+    // Familia virtual: artículos obsoletos con stock disponible.
+    $liqCount = (int) db()->query('SELECT COUNT(*) FROM products p JOIN stock s ON s.code = p.code WHERE p.obsolete = 1 AND s.qty > 0')->fetchColumn();
+    if ($liqCount > 0) {
+        $out[] = ['code' => '_LIQUIDACION', 'name' => 'En liquidación', 'count' => $liqCount, 'discount' => null];
+    }
+
     return $out;
+}
+
+/** Artículos de la familia "En liquidación": obsoletos con stock, usando el descuento del cliente por familia. */
+function liquidation_catalog(?string $customer): array
+{
+    $discounts = $customer !== null ? customer_discounts($customer) : [];
+    $stmt = db()->query(
+        'SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, p.family,
+                f.name AS family_name, COALESCE(s.qty, 0) AS stock
+         FROM products p
+         JOIN families f ON f.code = p.family
+         JOIN stock s ON s.code = p.code
+         WHERE p.obsolete = 1 AND s.qty > 0
+         ORDER BY f.name, p.name'
+    );
+    $photos = [];
+    foreach (glob(__DIR__ . '/../img/products/*') ?: [] as $file) {
+        $photos[pathinfo($file, PATHINFO_FILENAME)] = 'img/products/' . basename($file);
+    }
+    $products = [];
+    $byFamily = [];
+    foreach ($stmt->fetchAll() as $p) {
+        $base = (float) $p['base_price'];
+        $tester = (bool) $p['tester'];
+        $ean = $p['ean'] ?? '';
+        $discount = $discounts[$p['family']] ?? 0.0;
+        $products[$p['code']] = [
+            'code'   => $p['code'],
+            'line'   => $p['line_name'],
+            'name'   => $p['name'],
+            'ean'    => $p['ean'],
+            'pvp'    => $p['pvp'] !== null ? (float) $p['pvp'] : null,
+            'base'   => $base,
+            'net'    => $tester ? (float) $p['pvp'] : round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON, 2),
+            'image'  => $ean !== '' ? ($photos[$ean] ?? null) : null,
+            'stock'  => (int) $p['stock'],
+            'tester' => $tester,
+        ];
+        $byFamily[$p['family']] ??= ['name' => $p['family_name'], 'codes' => []];
+        $byFamily[$p['family']]['codes'][] = $p['code'];
+    }
+    $sections = [];
+    foreach ($byFamily as $fd) {
+        $sections[] = ['name' => $fd['name'], 'images' => [], 'codes' => $fd['codes']];
+    }
+    return ['logo' => null, 'products' => $products, 'sections' => $sections];
 }
 
 /** Artículos de una familia con su precio neto, agrupados en secciones. */
 function family_catalog(string $family, float $discount): array
 {
-    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? ORDER BY p.line_name, p.name');
+    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? AND p.obsolete = 0 ORDER BY p.line_name, p.name');
     $stmt->execute([$family]);
 
     // Escanea img/products/ una sola vez para mapear EAN → ruta relativa.
