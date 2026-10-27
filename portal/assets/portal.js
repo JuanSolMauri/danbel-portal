@@ -171,37 +171,101 @@
     update();
   });
 
-  // Pantalla de resumen (Finalizar compra)
+  // Pantalla de resumen multi-marca (Finalizar compra)
   var checkout = document.getElementById("checkout");
   if (checkout) {
     var esc = function (s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
 
-    function openCheckout() {
-      var o = update();
+    function gatherAllItems() {
+      update(); // asegura que el carro actual esté guardado
       var d = results.dataset;
-      document.getElementById("checkout-meta").textContent = d.brand + " · Cliente " + (d.customer || "admin") + " · " + new Date().toLocaleDateString("es-ES");
-      document.getElementById("checkout-lines").innerHTML = o.chosen.map(function (l) {
-        return "<tr>" +
-          "<td>" + esc(l.ean || "—") + "<small>" + esc(l.code) + "</small></td>" +
-          "<td>" + esc(l.name) + "</td>" +
-          "<td><span class='type-badge type-" + (l.type === "T" ? "t" : "p") + "'>" + l.type + "</span></td>" +
-          "<td>" + euro.format(l.net) + "</td>" +
-          "<td>" + l.qty + "</td>" +
-          "<td><strong>" + euro.format(l.total) + "</strong></td>" +
-          "</tr>";
+      var prefix = "danbel-pedido:" + (d.customer || "admin") + ":";
+      var items = {};
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.indexOf(prefix) === 0) {
+            var saved = JSON.parse(localStorage.getItem(key) || "{}");
+            var lines = saved.lines || {};
+            for (var code in lines) { if (lines[code] > 0) items[code] = lines[code]; }
+          }
+        }
+      } catch (e) { /* sin localStorage */ }
+      return items;
+    }
+
+    function renderCheckout(data) {
+      var d = results.dataset;
+      document.getElementById("checkout-meta").textContent = "Cliente " + (d.customer || "admin") + " · " + new Date().toLocaleDateString("es-ES");
+      document.getElementById("checkout-lines").innerHTML = data.brands.map(function (brand) {
+        var brandRow = "<tr class='checkout-brand-row'><td colspan='6'>" + esc(brand.name) + "</td></tr>";
+        var lineRows = brand.lines.map(function (l) {
+          return "<tr>" +
+            "<td>" + esc(l.ean || "—") + "<small>" + esc(l.code) + "</small></td>" +
+            "<td>" + esc(l.name) + "</td>" +
+            "<td><span class='type-badge type-" + (l.type === "T" ? "t" : "p") + "'>" + l.type + "</span></td>" +
+            "<td class='num'>" + euro.format(l.net) + "</td>" +
+            "<td class='num'>" + l.qty + "</td>" +
+            "<td class='num'><strong>" + euro.format(l.total) + "</strong></td>" +
+            "</tr>";
+        }).join("");
+        return brandRow + lineRows;
       }).join("");
-      var s = o.sums;
+      var s = data.sums;
+      var d1 = data.dto1, d2 = data.dto2;
       var sumRows = [["Productos (P)", euro.format(s.products)], ["Testers (T) a PVP", euro.format(s.testers)]];
       if (s.free > 0) sumRows.push(["Testers gratis (hasta el 10% de productos)", "− " + euro.format(s.free)]);
-      if (dto1 && s.d1 > 0) sumRows.push(["Descuento 1 (" + dto1.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d1)]);
-      if (dto2 && s.d2 > 0) sumRows.push(["Descuento 2 (" + dto2.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d2)]);
+      if (d1 && s.d1 > 0) sumRows.push(["Descuento 1 (" + d1.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d1)]);
+      if (d2 && s.d2 > 0) sumRows.push(["Descuento 2 (" + d2.toLocaleString("es-ES") + "%)", "− " + euro.format(s.d2)]);
       document.getElementById("checkout-sums").innerHTML = sumRows.map(function (r) {
         return "<div><dt>" + r[0] + "</dt><dd>" + r[1] + "</dd></div>";
-      }).join("") + "<div class='checkout-total'><dt>Total (sin IVA)</dt><dd>" + euro.format(o.total) + "</dd></div>";
+      }).join("") + "<div class='checkout-total'><dt>Total (sin IVA)</dt><dd>" + euro.format(data.total) + "</dd></div>";
       var noteText = notes.value.trim();
       document.getElementById("checkout-notes-section").innerHTML = noteText ? "<p class='checkout-notes-text'><strong>Observaciones:</strong> " + esc(noteText) + "</p>" : "";
       checkout.hidden = false;
       checkout.scrollTop = 0;
+    }
+
+    function openCheckout() {
+      var items = gatherAllItems();
+      if (!Object.keys(items).length) return;
+      document.getElementById("checkout-lines").innerHTML = "<tr><td colspan='6' style='padding:18px;color:#667488'>Cargando…</td></tr>";
+      document.getElementById("checkout-sums").innerHTML = "";
+      checkout.hidden = false;
+      checkout.scrollTop = 0;
+      fetch("app/cart-summary.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items })
+      })
+        .then(function (r) { return r.json(); })
+        .then(renderCheckout)
+        .catch(function () {
+          document.getElementById("checkout-lines").innerHTML = "<tr><td colspan='6' style='padding:18px;color:#c0392b'>Error al cargar el resumen. Inténtalo de nuevo.</td></tr>";
+        });
+    }
+
+    function allOrderText(data) {
+      var d = results.dataset;
+      var lines = ["Pedido Danbel · Cliente " + (d.customer || "sin código"), "Fecha: " + new Date().toLocaleDateString("es-ES"), ""];
+      data.brands.forEach(function (brand) {
+        lines.push("— " + brand.name + " —");
+        brand.lines.forEach(function (l) {
+          lines.push(l.type + " | " + l.code + " | EAN " + (l.ean || "sin EAN") + " | " + l.name + " | " + l.qty + " ud. × " + euro.format(l.net) + " = " + euro.format(l.total));
+        });
+        lines.push("");
+      });
+      var s = data.sums;
+      lines.push("Productos (P): " + euro.format(s.products));
+      lines.push("Testers (T) a PVP: " + euro.format(s.testers));
+      if (s.free > 0) lines.push("Testers gratis: -" + euro.format(s.free));
+      if (data.dto1 && s.d1 > 0) lines.push("Descuento 1 (" + data.dto1 + "%): -" + euro.format(s.d1));
+      if (data.dto2 && s.d2 > 0) lines.push("Descuento 2 (" + data.dto2 + "%): -" + euro.format(s.d2));
+      lines.push("TOTAL: " + euro.format(data.total));
+      lines.push("IVA y transporte según las condiciones comerciales acordadas.");
+      var noteText = notes.value.trim();
+      if (noteText) lines.push("Observaciones: " + noteText);
+      return lines.join("\n");
     }
 
     function closeCheckout() { checkout.hidden = true; }
@@ -210,10 +274,25 @@
     document.getElementById("checkout-back").addEventListener("click", closeCheckout);
     document.getElementById("checkout-back2").addEventListener("click", closeCheckout);
     document.getElementById("checkout-send").addEventListener("click", function () {
-      closeCheckout();
-      var d = results.dataset;
-      var subject = "Pedido " + d.brand + " · Cliente " + (d.customer || "sin código");
-      window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(orderText());
+      var items = gatherAllItems();
+      fetch("app/cart-summary.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          closeCheckout();
+          var d = results.dataset;
+          var subject = "Pedido Danbel · Cliente " + (d.customer || "sin código");
+          window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(allOrderText(data));
+        })
+        .catch(function () {
+          closeCheckout();
+          var d = results.dataset;
+          var subject = "Pedido " + d.brand + " · Cliente " + (d.customer || "sin código");
+          window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(orderText());
+        });
     });
   }
 

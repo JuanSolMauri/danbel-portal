@@ -186,7 +186,7 @@ site_header('catalogo', $access, $user);
   <div class="checkout-head">
     <button type="button" class="btn btn-outline btn-sm" id="checkout-back">&#8592; Volver</button>
     <div>
-      <h2>Resumen del pedido</h2>
+      <h2>Resumen del pedido completo</h2>
       <p class="checkout-meta-text" id="checkout-meta"></p>
     </div>
   </div>
