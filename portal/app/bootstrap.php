@@ -35,6 +35,7 @@ function db(): PDO
         // Migraciones de columnas añadidas tras la versión inicial.
         try { $pdo->exec('ALTER TABLE products ADD COLUMN obsolete TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE products ADD COLUMN prio TINYINT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE products ADD COLUMN ordre INT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     }
     return $pdo;
 }

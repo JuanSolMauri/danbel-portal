@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS products (
   tester TINYINT(1) NOT NULL DEFAULT 0,
   obsolete TINYINT(1) NOT NULL DEFAULT 0,
   prio TINYINT NOT NULL DEFAULT 0,
+  ordre INT NOT NULL DEFAULT 0,
   KEY idx_products_family (family)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

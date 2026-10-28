@@ -64,7 +64,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         $code = trim((string) $r['CODI']);
         // Productos de familia inactiva o con OBSOLET se marcan como obsolete=1 (van a EN LIQUIDACIÓN).
         $obsolete = (!$families[$family]['active'] || $r['OBSOLET']) ? 1 : 0;
-        $prio = (int) ($r['PRIO'] ?? 0);
+        $ordre = (int) ($r['ORDRE'] ?? 0);
         $products[$code] = [
             $code,
             $family,
@@ -76,7 +76,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             $ean !== '' ? ($photos[$ean] ?? null) : null,
             $tester ? 1 : 0,
             $obsolete,
-            $prio,
+            $ordre,
         ];
     }
 
@@ -110,7 +110,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
             insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], read_customers($tables['customers']));
         }
         insert_rows($db, 'families', ['code', 'name'], array_map(fn($code, $f) => [$code, $f['name']], array_keys($families), array_values($families)));
-        insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete', 'prio'], array_values($products));
+        insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete', 'ordre'], array_values($products));
         $rows = [];
         foreach ($discounts as $key => $dto) {
             [$customer, $family] = explode('|', $key, 2);

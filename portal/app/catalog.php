@@ -65,7 +65,7 @@ function liquidation_catalog(?string $customer): array
          JOIN families f ON f.code = p.family
          JOIN stock s ON s.code = p.code
          WHERE p.obsolete = 1 AND s.qty > 0
-         ORDER BY f.name, CASE WHEN p.prio > 0 THEN p.prio ELSE 9999 END, p.name'
+         ORDER BY f.name, CASE WHEN p.ordre > 0 THEN p.ordre ELSE 9999 END, p.name'
     );
     $photos = [];
     foreach (glob(__DIR__ . '/../img/products/*') ?: [] as $file) {
@@ -103,7 +103,7 @@ function liquidation_catalog(?string $customer): array
 /** Artículos de una familia con su precio neto, agrupados en secciones. */
 function family_catalog(string $family, float $discount): array
 {
-    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? AND p.obsolete = 0 ORDER BY p.line_name, CASE WHEN p.prio > 0 THEN p.prio ELSE 9999 END, p.name');
+    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? AND p.obsolete = 0 ORDER BY p.line_name, CASE WHEN p.ordre > 0 THEN p.ordre ELSE 9999 END, p.name');
     $stmt->execute([$family]);
 
     // Escanea img/products/ una sola vez para mapear EAN → ruta relativa.
