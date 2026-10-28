@@ -161,6 +161,17 @@ function family_catalog(string $family, float $discount): array
             $byLine[$p['line'] ?? ($sections ? 'Otras referencias' : 'Referencias')][] = $code;
         }
     }
+    // Ordenar secciones del ERP por el ORDRE mínimo de sus artículos; las sin ORDRE van al final por nombre.
+    uasort($byLine, function ($codesA, $codesB) use ($products) {
+        $minA = PHP_INT_MAX;
+        foreach ($codesA as $c) { $o = $products[$c]['ordre'] ?? 0; if ($o > 0 && $o < $minA) $minA = $o; }
+        $minB = PHP_INT_MAX;
+        foreach ($codesB as $c) { $o = $products[$c]['ordre'] ?? 0; if ($o > 0 && $o < $minB) $minB = $o; }
+        if ($minA === PHP_INT_MAX && $minB === PHP_INT_MAX) return 0;
+        if ($minA === PHP_INT_MAX) return 1;
+        if ($minB === PHP_INT_MAX) return -1;
+        return $minA <=> $minB;
+    });
     foreach ($byLine as $name => $codes) {
         $sections[] = ['name' => $name, 'images' => [], 'codes' => $codes];
     }
