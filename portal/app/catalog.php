@@ -103,7 +103,7 @@ function liquidation_catalog(?string $customer): array
 /** Artículos de una familia con su precio neto, agrupados en secciones. */
 function family_catalog(string $family, float $discount): array
 {
-    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? AND p.obsolete = 0 ORDER BY p.line_name, CASE WHEN p.ordre > 0 THEN p.ordre ELSE 9999 END, p.name');
+    $stmt = db()->prepare('SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, p.ordre, COALESCE(s.qty, 0) AS stock FROM products p LEFT JOIN stock s ON s.code = p.code WHERE p.family = ? AND p.obsolete = 0 ORDER BY p.line_name, CASE WHEN p.ordre > 0 THEN p.ordre ELSE 9999 END, p.name');
     $stmt->execute([$family]);
 
     // Escanea img/products/ una sola vez para mapear EAN → ruta relativa.
@@ -128,6 +128,7 @@ function family_catalog(string $family, float $discount): array
             'image' => $ean !== '' ? ($photos[$ean] ?? null) : null,
             'stock' => (int) $p['stock'],
             'tester' => $tester,
+            'ordre' => (int) $p['ordre'],
         ];
     }
 
@@ -163,12 +164,22 @@ function family_catalog(string $family, float $discount): array
     foreach ($byLine as $name => $codes) {
         $sections[] = ['name' => $name, 'images' => [], 'codes' => $codes];
     }
-    // En cada subfamilia, primero los productos y al final los testers (sin cambiar el orden entre ellos).
+    // Si algún artículo de la sección tiene ORDRE asignado, ordenar toda la sección por ORDRE.
+    // Si ninguno tiene ORDRE, comportamiento original: productos primero y testers al final.
     foreach ($sections as &$section) {
-        $section['codes'] = array_merge(
-            array_values(array_filter($section['codes'], fn ($c) => !$products[$c]['tester'])),
-            array_values(array_filter($section['codes'], fn ($c) => $products[$c]['tester'])),
-        );
+        $hasOrdre = array_filter($section['codes'], fn ($c) => ($products[$c]['ordre'] ?? 0) > 0);
+        if ($hasOrdre) {
+            usort($section['codes'], function ($a, $b) use ($products) {
+                $oa = ($products[$a]['ordre'] ?? 0) > 0 ? $products[$a]['ordre'] : 9999;
+                $ob = ($products[$b]['ordre'] ?? 0) > 0 ? $products[$b]['ordre'] : 9999;
+                return $oa !== $ob ? $oa <=> $ob : strcmp($products[$a]['name'], $products[$b]['name']);
+            });
+        } else {
+            $section['codes'] = array_merge(
+                array_values(array_filter($section['codes'], fn ($c) => !$products[$c]['tester'])),
+                array_values(array_filter($section['codes'], fn ($c) => $products[$c]['tester'])),
+            );
+        }
     }
     unset($section);
 
