@@ -32,8 +32,9 @@ function db(): PDO
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
-        // Migración: columna obsolete añadida para la familia "En liquidación".
+        // Migraciones de columnas añadidas tras la versión inicial.
         try { $pdo->exec('ALTER TABLE products ADD COLUMN obsolete TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE products ADD COLUMN prio TINYINT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
     }
     return $pdo;
 }
