@@ -161,16 +161,15 @@ function family_catalog(string $family, float $discount): array
             $byLine[$p['line'] ?? ($sections ? 'Otras referencias' : 'Referencias')][] = $code;
         }
     }
-    // Ordenar secciones del ERP por el ORDRE mínimo de sus artículos; las sin ORDRE van al final por nombre.
-    uasort($byLine, function ($codesA, $codesB) use ($products) {
-        $minA = PHP_INT_MAX;
-        foreach ($codesA as $c) { $o = $products[$c]['ordre'] ?? 0; if ($o > 0 && $o < $minA) $minA = $o; }
-        $minB = PHP_INT_MAX;
-        foreach ($codesB as $c) { $o = $products[$c]['ordre'] ?? 0; if ($o > 0 && $o < $minB) $minB = $o; }
-        if ($minA === PHP_INT_MAX && $minB === PHP_INT_MAX) return 0;
-        if ($minA === PHP_INT_MAX) return 1;
-        if ($minB === PHP_INT_MAX) return -1;
-        return $minA <=> $minB;
+    // Ordenar secciones por el primer número que aparece en el nombre de la subfamilia (NOMSFAM).
+    // Ejemplo: "10 Dark Amber" → 10, "20 Black Collection" → 20. Sin número → al final, alfabético.
+    $sectionKey = static function (string $name): array {
+        return preg_match('/(\d+)/', $name, $m) ? [(int) $m[1], $name] : [PHP_INT_MAX, $name];
+    };
+    uksort($byLine, static function ($nameA, $nameB) use ($sectionKey) {
+        [$numA, $strA] = $sectionKey($nameA);
+        [$numB, $strB] = $sectionKey($nameB);
+        return $numA !== $numB ? $numA <=> $numB : strcmp($strA, $strB);
     });
     foreach ($byLine as $name => $codes) {
         $sections[] = ['name' => $name, 'images' => [], 'codes' => $codes];
