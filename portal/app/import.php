@@ -5,8 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/dbf.php';
 
 const ERP_TABLES = ['families' => 'TFAMILIES.DBF', 'products' => 'TMATPR.DBF', 'discounts' => 'TTARIFCLI.DBF'];
-/** Tabla opcional: si no se sube, se conservan las fichas de cliente ya cargadas. */
-const ERP_OPTIONAL_TABLES = ['customers' => 'TCLIENT.DBF'];
+/** Tablas opcionales: si no se suben, se conservan los datos ya cargados. */
+const ERP_OPTIONAL_TABLES = ['customers' => 'TCLIENT.DBF', 'subfamilies' => 'TSUBFAM.DBF'];
 
 /** Busca las tablas (sin distinguir mayúsculas) en una carpeta. */
 function find_erp_tables(string $dir): array
@@ -42,6 +42,18 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         }
     }
 
+    // Mapa SFAMILIA → descripción de TSUBFAM. Si no se sube TSUBFAM, se usa NOMSFAM de tmatpr.
+    $subfamilyNames = [];
+    if (isset($tables['subfamilies'])) {
+        foreach ((new DbfReader($tables['subfamilies']))->rows() as $r) {
+            $sfCode = trim((string) $r['CODI']);
+            $sfDesc = trim((string) $r['DESCRIPCIO']);
+            if ($sfCode !== '' && $sfDesc !== '') {
+                $subfamilyNames[$sfCode] = $sfDesc;
+            }
+        }
+    }
+
     $photos = [];
     foreach (glob($imageDir . '/*') ?: [] as $file) {
         $photos[pathinfo($file, PATHINFO_FILENAME)] = 'img/products/' . basename($file);
@@ -65,10 +77,15 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         // Productos de familia inactiva o con OBSOLET se marcan como obsolete=1 (van a EN LIQUIDACIÓN).
         $obsolete = (!$families[$family]['active'] || $r['OBSOLET']) ? 1 : 0;
         $ordre = (int) ($r['ORDRE'] ?? 0);
+        // Nombre de subfamilia: TSUBFAM.DESCRIPCIO (si está cargado) o NOMSFAM de tmatpr como fallback.
+        $sfam = trim((string) ($r['SFAMILIA'] ?? ''));
+        $lineName = ($sfam !== '' && isset($subfamilyNames[$sfam]))
+            ? $subfamilyNames[$sfam]
+            : (trim((string) $r['NOMSFAM']) ?: null);
         $products[$code] = [
             $code,
             $family,
-            trim((string) $r['NOMSFAM']) ?: null,
+            $lineName,
             trim((string) $r['DESCWEB']) ?: trim((string) $r['DESCRIPCIO']),
             $ean ?: null,
             $r['PVP'] ? round($r['PVP'], 2) : null,
