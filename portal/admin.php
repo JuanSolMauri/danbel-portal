@@ -385,7 +385,7 @@ site_header('admin', $access, $user);
     </form>
   </section>
 
-  <?php if (db_erp() !== null): ?>
+  <?php if (config('erp_db')): ?>
   <section class="customer-panel admin-panel">
     <h2>Importar desde BD ERP</h2>
     <p>Lee los artículos, familias y descuentos directamente de la base de datos del ERP. No hace falta subir ningún fichero DBF.</p>
@@ -398,8 +398,11 @@ site_header('admin', $access, $user);
                 $nDesc = (int) $erp->query('SELECT COUNT(*) FROM TTARIFCLI')->fetchColumn();
                 echo '<p class="muted">BD ERP conectada · TFAMILIES: ' . $nFam . ' filas, TMATPR: ' . $nArt . ' filas, TTARIFCLI: ' . $nDesc . ' filas.</p>';
             } catch (Throwable $ex) {
-                echo '<p class="notice notice-error">' . e('Error al conectar con el ERP: ' . $ex->getMessage()) . '</p>';
+                echo '<p class="notice notice-error">' . e('Error al consultar el ERP: ' . $ex->getMessage()) . '</p>';
             }
+        } else {
+            $erpErr = $GLOBALS['_db_erp_error'] ?? 'Contraseña o datos de conexión incorrectos.';
+            echo '<p class="notice notice-error">' . e('No se ha podido conectar a la BD del ERP: ' . $erpErr) . '</p>';
         }
     ?>
     <form method="post" class="admin-form">

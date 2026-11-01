@@ -49,16 +49,21 @@ function db_erp(): ?PDO
         if (!$c) {
             $pdo = null;
         } else {
-            $pdo = new PDO(
-                "mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4",
-                $c['user'],
-                $c['pass'],
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false,
-                ]
-            );
+            try {
+                $pdo = new PDO(
+                    "mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4",
+                    $c['user'],
+                    $c['pass'],
+                    [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        PDO::ATTR_EMULATE_PREPARES => false,
+                    ]
+                );
+            } catch (Throwable $e) {
+                $GLOBALS['_db_erp_error'] = $e->getMessage();
+                $pdo = null;
+            }
         }
     }
     return $pdo;
