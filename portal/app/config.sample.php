@@ -15,4 +15,12 @@ return [
     'order_email' => '',
     // Códigos de cliente que pueden ver la columna Stock (además del administrador).
     'stock_visible_clients' => ['5825'],
+    // Conexión a la BD del ERP para importar artículos directamente (sin subir DBF).
+    // Descomenta y rellena cuando el ERP sincronice sus tablas en MySQL.
+    // 'erp_db' => [
+    //     'host' => 'qarx575.danbelgroup.com',
+    //     'name' => 'qarx575',
+    //     'user' => 'qarx575',
+    //     'pass' => 'contraseña_erp',
+    // ],
 ];

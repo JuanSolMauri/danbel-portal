@@ -40,6 +40,30 @@ function db(): PDO
     return $pdo;
 }
 
+/** Conexión a la BD del ERP (erp_db en config.php). Devuelve null si no está configurada. */
+function db_erp(): ?PDO
+{
+    static $pdo = false;
+    if ($pdo === false) {
+        $c = config('erp_db');
+        if (!$c) {
+            $pdo = null;
+        } else {
+            $pdo = new PDO(
+                "mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4",
+                $c['user'],
+                $c['pass'],
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false,
+                ]
+            );
+        }
+    }
+    return $pdo;
+}
+
 function is_https(): bool
 {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')

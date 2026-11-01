@@ -202,6 +202,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } finally {
                 remove_dir($dir);
             }
+        } elseif ($action === 'import_erp_mysql') {
+            $erp = db_erp();
+            if (!$erp) {
+                throw new RuntimeException('La conexión al ERP (erp_db) no está configurada en config.php.');
+            }
+            $r = import_erp_mysql(db(), $erp, __DIR__ . '/img/products');
+            $message = "Datos actualizados desde la BD ERP: {$r['families']} familias, {$r['products']} artículos y {$r['customers']} clientes con descuento.";
         } elseif ($action === 'save_user') {
             $login = strtolower(trim((string) ($_POST['login'] ?? '')));
             $role = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'customer';
@@ -377,6 +384,30 @@ site_header('admin', $access, $user);
       <button type="submit" class="btn">Actualizar datos</button>
     </form>
   </section>
+
+  <?php if (db_erp() !== null): ?>
+  <section class="customer-panel admin-panel">
+    <h2>Importar desde BD ERP</h2>
+    <p>Lee los artículos, familias y descuentos directamente de la base de datos del ERP. No hace falta subir ningún fichero DBF.</p>
+    <?php
+        $erp = db_erp();
+        if ($erp) {
+            try {
+                $nFam  = (int) $erp->query('SELECT COUNT(*) FROM TFAMILIES')->fetchColumn();
+                $nArt  = (int) $erp->query('SELECT COUNT(*) FROM TMATPR')->fetchColumn();
+                $nDesc = (int) $erp->query('SELECT COUNT(*) FROM TTARIFCLI')->fetchColumn();
+                echo '<p class="muted">BD ERP conectada · TFAMILIES: ' . $nFam . ' filas, TMATPR: ' . $nArt . ' filas, TTARIFCLI: ' . $nDesc . ' filas.</p>';
+            } catch (Throwable $ex) {
+                echo '<p class="notice notice-error">' . e('Error al conectar con el ERP: ' . $ex->getMessage()) . '</p>';
+            }
+        }
+    ?>
+    <form method="post" class="admin-form">
+      <?= csrf_field() ?><input type="hidden" name="action" value="import_erp_mysql">
+      <button type="submit" class="btn">Importar datos del ERP</button>
+    </form>
+  </section>
+  <?php endif ?>
 
   <section class="customer-panel admin-panel">
     <h2>Actualizar stock</h2>
