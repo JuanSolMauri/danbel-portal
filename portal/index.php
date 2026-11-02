@@ -102,14 +102,8 @@ site_header('catalogo', $access, $user);
           </div>
           <div class="sergio-sections">
             <?php
-            $prevDecena = null;
             foreach ($catalog['sections'] as $section):
-                $sectionNum = preg_match('/(\d+)/', $section['name'], $_m) ? (int) $_m[1] : null;
-                $decena = $sectionNum !== null ? (int) floor($sectionNum / 10) : null;
-                if ($decena !== null && $prevDecena !== null && $decena !== $prevDecena):
             ?>
-            <hr class="section-divider">
-            <?php endif; $prevDecena = $decena; ?>
             <div class="sergio-section">
               <div class="sergio-section-heading"><h3><?= e($section['name']) ?></h3><span><?= count($section['codes']) ?> referencias</span></div>
               <div class="sergio-section-content">
@@ -117,8 +111,12 @@ site_header('catalogo', $access, $user);
                   <table class="order-table">
                     <thead><tr><th>EAN / Ref.</th><th>Descripción</th><th>Tipo</th><th>PVP</th><th>Tarifa</th><th>Dto.</th><th>Precio neto</th><?php if ($showStock): ?><th>Stock</th><?php endif ?><th>Unidades</th><th>Total</th></tr></thead>
                     <tbody>
-                    <?php foreach ($section['codes'] as $code): $p = $catalog['products'][$code]; ?>
-                      <tr data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>" data-stock="<?= $p['stock'] ?>"
+                    <?php $prevDecenaRow = null; foreach ($section['codes'] as $code): $p = $catalog['products'][$code];
+                    $ordreVal = (int) ($p['ordre'] ?? 0);
+                    $decenaRow = $ordreVal > 0 ? (int) floor($ordreVal / 10) : null;
+                    $isGroupStart = $decenaRow !== null && $prevDecenaRow !== null && $decenaRow !== $prevDecenaRow;
+                    $prevDecenaRow = $decenaRow ?? $prevDecenaRow; ?>
+                      <tr <?= $isGroupStart ? 'class="row-group-start"' : '' ?> data-code="<?= e($p['code']) ?>" data-ean="<?= e($p['ean'] ?? '') ?>" data-name="<?= e($p['name']) ?>" data-net="<?= e((string) $p['net']) ?>" data-type="<?= $p['tester'] ? 'T' : 'P' ?>" data-stock="<?= $p['stock'] ?>"
                           data-search="<?= e(mb_strtolower($p['code'] . ' ' . ($p['ean'] ?? '') . ' ' . $p['name'])) ?>">
                         <td><?= e($p['ean'] ?? '—') ?><small><?= e($p['code']) ?></small></td>
                         <td><div class="order-product-cell"><?php if ($p['image']): ?><button type="button" class="zoom-photo" data-zoom="<?= e($p['image']) ?>" aria-label="Ampliar foto de <?= e($p['name']) ?>"><img src="<?= e($p['image']) ?>" alt="" loading="lazy"></button><?php endif ?><span><?= e($p['name']) ?></span></div></td>
