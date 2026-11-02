@@ -12,7 +12,7 @@ function page_start(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?></title>
 <link rel="icon" href="img/favicon.svg">
-<link rel="stylesheet" href="assets/portal.css?v=2">
+<link rel="stylesheet" href="assets/portal.css?v=3">
 </head>
 <body>
 <?php
