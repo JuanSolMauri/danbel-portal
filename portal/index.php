@@ -101,7 +101,15 @@ site_header('catalogo', $access, $user);
             <span class="order-summary">0 productos · 0,00 €</span>
           </div>
           <div class="sergio-sections">
-            <?php foreach ($catalog['sections'] as $section): ?>
+            <?php
+            $prevDecena = null;
+            foreach ($catalog['sections'] as $section):
+                $sectionNum = preg_match('/(\d+)/', $section['name'], $_m) ? (int) $_m[1] : null;
+                $decena = $sectionNum !== null ? (int) floor($sectionNum / 10) : null;
+                if ($decena !== null && $prevDecena !== null && $decena !== $prevDecena):
+            ?>
+            <hr class="section-divider">
+            <?php endif; $prevDecena = $decena; ?>
             <div class="sergio-section">
               <div class="sergio-section-heading"><h3><?= e($section['name']) ?></h3><span><?= count($section['codes']) ?> referencias</span></div>
               <div class="sergio-section-content">
