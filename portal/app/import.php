@@ -6,7 +6,7 @@ require_once __DIR__ . '/dbf.php';
 
 const ERP_TABLES = ['families' => 'TFAMILIES.DBF', 'products' => 'TMATPR.DBF', 'discounts' => 'TTARIFCLI.DBF'];
 /** Tablas opcionales: si no se suben, se conservan los datos ya cargados. */
-const ERP_OPTIONAL_TABLES = ['customers' => 'TCLIENT.DBF', 'subfamilies' => 'TSUBFAM.DBF'];
+const ERP_OPTIONAL_TABLES = ['customers' => 'TCLIENT.DBF', 'subfamilies' => 'TSUBFAM.DBF', 'stock' => 'TSTOCKJOAN.DBF'];
 
 /** Busca las tablas (sin distinguir mayúsculas) en una carpeta. */
 function find_erp_tables(string $dir): array
@@ -97,6 +97,17 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         ];
     }
 
+    // Stock desde TstockJoan.DBF: CODI → STOCK. Filas con CODI vacío se ignoran.
+    $stockRows = [];
+    if (isset($tables['stock'])) {
+        foreach ((new DbfReader($tables['stock']))->rows() as $r) {
+            $code = trim((string) $r['CODI']);
+            if ($code !== '') {
+                $stockRows[$code] = (int) $r['STOCK'];
+            }
+        }
+    }
+
     // Descuentos por familia. Las filas con MATERIAL son descuentos por artículo y de momento no se usan.
     // Si una pareja cliente-familia se repite, manda la última (mayor NUMERO).
     $discounts = [];
@@ -135,6 +146,14 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         }
         insert_rows($db, 'discounts', ['customer_code', 'family', 'dto'], $rows);
         $customers = count(array_unique(array_column($rows, 0)));
+        if ($stockRows) {
+            $db->exec('DELETE FROM stock');
+            $stockData = [];
+            foreach ($stockRows as $code => $qty) {
+                $stockData[] = [$code, $qty];
+            }
+            insert_rows($db, 'stock', ['code', 'qty'], $stockData);
+        }
         $db->prepare('INSERT INTO imports (families, products, customers) VALUES (?, ?, ?)')
             ->execute([count($families), count($products), $customers]);
         $db->commit();
@@ -143,7 +162,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         throw $error;
     }
 
-    return ['families' => count($families), 'products' => count($products), 'customers' => $customers];
+    return ['families' => count($families), 'products' => count($products), 'customers' => $customers, 'stock' => count($stockRows)];
 }
 
 /** Fichas de cliente de TCLIENT.DBF. La cuenta es IBAN + COMPTA1..4. */

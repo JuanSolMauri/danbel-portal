@@ -198,7 +198,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Faltan las tablas: ' . implode(', ', $missing) . '.');
                 }
                 $r = import_erp(db(), $tables, __DIR__ . '/img/products');
-                $message = "Datos actualizados: {$r['families']} familias, {$r['products']} artículos y {$r['customers']} clientes con descuento.";
+                $stockMsg = ($r['stock'] ?? 0) > 0 ? " y {$r['stock']} referencias con stock" : '';
+                $message = "Datos actualizados: {$r['families']} familias, {$r['products']} artículos y {$r['customers']} clientes con descuento{$stockMsg}.";
             } finally {
                 remove_dir($dir);
             }

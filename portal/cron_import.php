@@ -33,7 +33,8 @@ if ($missing) {
 try {
     $r = import_erp(db(), $tables, __DIR__ . '/img/products');
     $ts = date('Y-m-d H:i:s');
-    echo "OK [$ts] {$r['families']} familias, {$r['products']} artículos, {$r['customers']} clientes con descuento.\n";
+    $stockMsg = ($r['stock'] ?? 0) > 0 ? ", {$r['stock']} referencias con stock" : '';
+    echo "OK [$ts] {$r['families']} familias, {$r['products']} artículos, {$r['customers']} clientes con descuento{$stockMsg}.\n";
 } catch (Throwable $e) {
     echo 'ERROR: ' . $e->getMessage() . "\n";
 }
