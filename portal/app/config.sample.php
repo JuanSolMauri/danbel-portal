@@ -23,4 +23,17 @@ return [
     //     'user' => 'qarx575',
     //     'pass' => 'contraseña_erp',
     // ],
+
+    // Descarga automática de los DBF del ERP vía FTPS o FTP.
+    // Rellena con los datos que te dé el proveedor del ERP y descomenta.
+    // type: 'ftps' = FTP sobre TLS (recomendado, puerto 21)
+    //        'ftp' = FTP sin cifrado (solo si el proveedor no ofrece TLS)
+    // 'erp_ftp' => [
+    //     'host'       => 'ftp.proveedor-erp.com',
+    //     'port'       => 21,
+    //     'user'       => 'usuario_readonly',
+    //     'pass'       => 'contraseña',
+    //     'type'       => 'ftps',
+    //     'remote_dir' => '/ruta/a/los/dbf/',
+    // ],
 ];

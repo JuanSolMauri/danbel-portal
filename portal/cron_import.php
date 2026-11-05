@@ -22,6 +22,20 @@ if (!is_dir($dataDir)) {
     exit;
 }
 
+// Descarga automática desde el ERP (si erp_ftp está configurado en config.php).
+if (config('erp_ftp')) {
+    require_once __DIR__ . '/app/ftp.php';
+    try {
+        $downloaded = download_erp_dbfs($dataDir);
+        if ($downloaded) {
+            echo 'DBF descargados del ERP: ' . implode(', ', $downloaded) . "\n";
+        }
+    } catch (Throwable $e) {
+        echo 'ERROR descargando DBF del ERP: ' . $e->getMessage() . "\n";
+        exit;
+    }
+}
+
 $tables = find_erp_tables($dataDir);
 $missing = array_diff_key(ERP_TABLES, $tables);
 if ($missing) {
