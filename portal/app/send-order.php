@@ -87,12 +87,21 @@ $total        = $round($subtotal - $d1 - $d2);
 
 $sums = compact('products_sum', 'testers_sum', 'free', 'subtotal', 'd1', 'd2', 'dto1', 'dto2', 'total');
 
-$to      = (string) config('order_email', '');
-$label   = 'Cliente ' . ($customer ?? 'Admin');
-$subject = '=?UTF-8?B?' . base64_encode("Pedido Danbel · {$label}") . '?=';
-$date    = date('Y-m-d');
-$fname   = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.xls';
+$to    = (string) config('order_email', '');
+$label = 'Cliente ' . ($customer ?? 'Admin');
+$date  = date('Y-m-d');
 
+if (class_exists('ZipArchive')) {
+    $attachData = order_xlsx($lines, $sums, $notes, $label);
+    $attachMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    $fname      = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.xlsx';
+} else {
+    $attachData = order_csv($lines, $sums, $notes, $label);
+    $attachMime = 'text/csv; charset=UTF-8';
+    $fname      = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.csv';
+}
+
+$subject  = '=?UTF-8?B?' . base64_encode("Pedido Danbel · {$label}") . '?=';
 $boundary = 'DBL' . md5(uniqid('', true));
 $headers  = implode("\r\n", [
     'From: Portal Danbel <noreply@danbelgroup.com>',
@@ -105,10 +114,10 @@ $message = "--{$boundary}\r\n"
     . "Content-Transfer-Encoding: 8bit\r\n\r\n"
     . order_text($lines, $sums, $notes, $label)
     . "\r\n\r\n--{$boundary}\r\n"
-    . "Content-Type: application/vnd.ms-excel; name=\"{$fname}\"\r\n"
+    . "Content-Type: {$attachMime}; name=\"{$fname}\"\r\n"
     . "Content-Transfer-Encoding: base64\r\n"
     . "Content-Disposition: attachment; filename=\"{$fname}\"\r\n\r\n"
-    . chunk_split(base64_encode(order_excel($lines, $sums, $notes, $label)))
+    . chunk_split(base64_encode($attachData))
     . "\r\n--{$boundary}--";
 
 $ok = @mail($to, $subject, $message, $headers);
@@ -155,74 +164,180 @@ function order_text(array $lines, array $sums, string $notes, string $label): st
     return $out;
 }
 
-function order_excel(array $lines, array $sums, string $notes, string $label): string
+function order_xlsx(array $lines, array $sums, string $notes, string $label): string
 {
-    $xe  = fn(string $s) => htmlspecialchars($s, ENT_XML1, 'UTF-8');
-    $str = fn(string $v, string $st = '') => '<Cell' . ($st ? " ss:StyleID=\"{$st}\"" : '') . '><Data ss:Type="String">' . $xe($v) . '</Data></Cell>';
-    $num = fn(float $v, string $st = '') => '<Cell' . ($st ? " ss:StyleID=\"{$st}\"" : '') . '><Data ss:Type="Number">' . $v . '</Data></Cell>';
+    $xe = fn(string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    // Styles: 0=normal, 1=bold text, 2=decimal, 3=bold decimal
+    $cs = fn(string $col, int $row, string $val, int $s = 0): string =>
+        '<c r="' . $col . $row . '" t="inlineStr"' . ($s ? " s=\"{$s}\"" : '') . '><is><t>' . $xe($val) . '</t></is></c>';
+    $cn = fn(string $col, int $row, float $val, int $s = 0): string =>
+        '<c r="' . $col . $row . '"' . ($s ? " s=\"{$s}\"" : '') . '><v>' . $val . '</v></c>';
 
-    $xml  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    $xml .= "<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">\n";
-    $xml .= "<Styles>\n";
-    $xml .= "<Style ss:ID=\"h\"><Font ss:Bold=\"1\"/></Style>\n";
-    $xml .= "<Style ss:ID=\"n\"><NumberFormat ss:Format=\"0.00\"/></Style>\n";
-    $xml .= "<Style ss:ID=\"hn\"><Font ss:Bold=\"1\"/><NumberFormat ss:Format=\"0.00\"/></Style>\n";
-    $xml .= "</Styles>\n";
-    $xml .= "<Worksheet ss:Name=\"Pedido\">\n<Table>\n";
+    $cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    $rows = '';
+    $r    = 1;
 
     // Título
-    $xml .= "<Row><Cell ss:MergeAcross=\"7\"><Data ss:Type=\"String\">" . $xe("PEDIDO DANBEL · {$label}") . "</Data></Cell></Row>\n";
-    $xml .= "<Row/>\n";
+    $rows .= "<row r=\"{$r}\">" . $cs('A', $r, "PEDIDO DANBEL · {$label}", 1) . "</row>\n";
+    $r += 2; // fila en blanco
 
-    // Cabecera columnas
-    $xml .= "<Row>";
-    foreach (['Marca', 'Código', 'EAN', 'Descripción', 'Tipo', 'Precio neto', 'Uds.', 'Total'] as $h) {
-        $xml .= $str($h, 'h');
+    // Cabecera
+    $rows .= "<row r=\"{$r}\">";
+    foreach (['Marca', 'Código', 'EAN', 'Descripción', 'Tipo', 'Precio neto', 'Uds.', 'Total'] as $i => $h) {
+        $rows .= $cs($cols[$i], $r, $h, 1);
     }
-    $xml .= "</Row>\n";
+    $rows .= "</row>\n";
+    $r++;
 
-    // Líneas
+    // Líneas de producto
     foreach ($lines as $l) {
-        $xml .= "<Row>";
-        $xml .= $str($l['family_name']);
-        $xml .= $str($l['code']);
-        $xml .= $str($l['ean']);
-        $xml .= $str($l['name']);
-        $xml .= $str($l['type'] === 'T' ? 'Tester' : 'Producto');
-        $xml .= $num($l['net'], 'n');
-        $xml .= $num($l['qty']);
-        $xml .= $num($l['total'], 'n');
-        $xml .= "</Row>\n";
+        $rows .= "<row r=\"{$r}\">"
+            . $cs('A', $r, $l['family_name'])
+            . $cs('B', $r, $l['code'])
+            . $cs('C', $r, $l['ean'])
+            . $cs('D', $r, $l['name'])
+            . $cs('E', $r, $l['type'] === 'T' ? 'Tester' : 'Producto')
+            . $cn('F', $r, (float) $l['net'], 2)
+            . $cn('G', $r, (float) $l['qty'])
+            . $cn('H', $r, (float) $l['total'], 2)
+            . "</row>\n";
+        $r++;
     }
 
     // Totales
-    $xml .= "<Row/>\n";
+    $r++;
     $totals = [
-        ['Productos', $sums['products_sum']],
-        ['Testers', $sums['testers_sum']],
+        ['Productos', (float) $sums['products_sum'], false],
+        ['Testers', (float) $sums['testers_sum'], false],
     ];
-    if ($sums['free'] > 0) {
-        $totals[] = ['Rappel gratuito testers', -$sums['free']];
-    }
-    if ($sums['dto1'] > 0) {
-        $totals[] = ["Dto. {$sums['dto1']}%", -$sums['d1']];
-    }
-    if ($sums['dto2'] > 0) {
-        $totals[] = ["Dto. {$sums['dto2']}%", -$sums['d2']];
-    }
-    $totals[] = ['TOTAL (sin IVA)', $sums['total']];
-    foreach ($totals as [$tLabel, $tVal]) {
-        $bold = $tLabel === 'TOTAL (sin IVA)';
-        $xml .= "<Row><Cell ss:Index=\"7\"><Data ss:Type=\"String\" ss:StyleID=\"h\">" . $xe($tLabel) . "</Data></Cell>";
-        $xml .= "<Cell ss:StyleID=\"" . ($bold ? 'hn' : 'n') . "\"><Data ss:Type=\"Number\">" . (float) $tVal . "</Data></Cell></Row>\n";
+    if ($sums['free'] > 0)  $totals[] = ['Rappel gratuito testers', -(float) $sums['free'], false];
+    if ($sums['dto1'] > 0)  $totals[] = ["Dto. {$sums['dto1']}%", -(float) $sums['d1'], false];
+    if ($sums['dto2'] > 0)  $totals[] = ["Dto. {$sums['dto2']}%", -(float) $sums['d2'], false];
+    $totals[] = ['TOTAL (sin IVA)', (float) $sums['total'], true];
+
+    foreach ($totals as [$tLabel, $tVal, $bold]) {
+        $rows .= "<row r=\"{$r}\">"
+            . $cs('G', $r, $tLabel, 1)
+            . $cn('H', $r, $tVal, $bold ? 3 : 2)
+            . "</row>\n";
+        $r++;
     }
 
     if ($notes !== '') {
-        $xml .= "<Row/>\n";
-        $xml .= "<Row><Cell><Data ss:Type=\"String\" ss:StyleID=\"h\">Observaciones</Data></Cell>"
-              . "<Cell ss:MergeAcross=\"6\"><Data ss:Type=\"String\">" . $xe($notes) . "</Data></Cell></Row>\n";
+        $r++;
+        $rows .= "<row r=\"{$r}\">"
+            . $cs('A', $r, 'Observaciones', 1)
+            . $cs('B', $r, $notes)
+            . "</row>\n";
     }
 
-    $xml .= "</Table>\n</Worksheet>\n</Workbook>";
-    return $xml;
+    // Construir el ZIP
+    $tmp = tempnam(sys_get_temp_dir(), 'dbl');
+    $zip = new ZipArchive();
+    $zip->open($tmp, ZipArchive::OVERWRITE);
+
+    $zip->addFromString('[Content_Types].xml',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' .
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' .
+        '<Default Extension="xml" ContentType="application/xml"/>' .
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' .
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' .
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' .
+        '</Types>'
+    );
+
+    $zip->addFromString('_rels/.rels',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' .
+        '</Relationships>'
+    );
+
+    $zip->addFromString('xl/workbook.xml',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' .
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' .
+        '<sheets><sheet name="Pedido" sheetId="1" r:id="rId1"/></sheets>' .
+        '</workbook>'
+    );
+
+    $zip->addFromString('xl/_rels/workbook.xml.rels',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' .
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' .
+        '</Relationships>'
+    );
+
+    $zip->addFromString('xl/styles.xml',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' .
+        '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>' .
+        '<fonts count="2">' .
+        '<font><sz val="11"/><name val="Calibri"/></font>' .
+        '<font><b/><sz val="11"/><name val="Calibri"/></font>' .
+        '</fonts>' .
+        '<fills count="2">' .
+        '<fill><patternFill patternType="none"/></fill>' .
+        '<fill><patternFill patternType="gray125"/></fill>' .
+        '</fills>' .
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' .
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' .
+        '<cellXfs count="4">' .
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' .
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' .
+        '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' .
+        '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>' .
+        '</cellXfs>' .
+        '</styleSheet>'
+    );
+
+    $zip->addFromString('xl/worksheets/sheet1.xml',
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' .
+        '<sheetData>' . $rows . '</sheetData>' .
+        '</worksheet>'
+    );
+
+    $zip->close();
+    $content = file_get_contents($tmp);
+    unlink($tmp);
+    return $content;
+}
+
+function order_csv(array $lines, array $sums, string $notes, string $label): string
+{
+    $row = fn(array $f): string => implode(';', array_map(
+        fn($v) => '"' . str_replace('"', '""', (string) $v) . '"', $f
+    )) . "\r\n";
+    $fmt = fn(float $v): string => number_format($v, 2, ',', '.');
+
+    $out = "\xEF\xBB\xBF" // UTF-8 BOM para Excel
+        . $row(["PEDIDO DANBEL · {$label}"])
+        . $row([])
+        . $row(['Marca', 'Código', 'EAN', 'Descripción', 'Tipo', 'Precio neto', 'Uds.', 'Total']);
+
+    foreach ($lines as $l) {
+        $out .= $row([
+            $l['family_name'], $l['code'], $l['ean'], $l['name'],
+            $l['type'] === 'T' ? 'Tester' : 'Producto',
+            $fmt($l['net']), $l['qty'], $fmt($l['total']),
+        ]);
+    }
+
+    $out .= $row([]);
+    $totals = [['Productos', $fmt($sums['products_sum'])], ['Testers', $fmt($sums['testers_sum'])]];
+    if ($sums['free'] > 0)  $totals[] = ['Rappel gratuito testers', '-' . $fmt($sums['free'])];
+    if ($sums['dto1'] > 0)  $totals[] = ["Dto. {$sums['dto1']}%", '-' . $fmt($sums['d1'])];
+    if ($sums['dto2'] > 0)  $totals[] = ["Dto. {$sums['dto2']}%", '-' . $fmt($sums['d2'])];
+    $totals[] = ['TOTAL (sin IVA)', $fmt($sums['total'])];
+    foreach ($totals as [$tLabel, $tVal]) {
+        $out .= $row(['', '', '', '', '', '', $tLabel, $tVal]);
+    }
+
+    if ($notes !== '') {
+        $out .= $row([]) . $row(['Observaciones', $notes]);
+    }
+    return $out;
 }
