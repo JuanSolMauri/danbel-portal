@@ -65,7 +65,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         // tarifa) se venden a PVP y necesitan PVP; el resto necesita precio de tarifa.
         // Los artículos obsoletos (OBSOLET) se incluyen para la familia virtual "En liquidación".
         $tester = $r['REGAL'] === true && !$r['PREUTARIFA'];
-        if (!$r['ACT'] || $r['NOUSAR'] || $r['NOVIS'] || !($tester ? $r['PVP'] : $r['PREUTARIFA'])) {
+        if (!$r['ACT'] || $r['NOUSAR'] || !($tester ? $r['PVP'] : $r['PREUTARIFA'])) {
             continue;
         }
         $family = trim((string) $r['FAMILIA']);
