@@ -91,15 +91,9 @@ $to    = (string) config('order_email', '');
 $label = 'Cliente ' . ($customer ?? 'Admin');
 $date  = date('Y-m-d');
 
-if (class_exists('ZipArchive')) {
-    $attachData = order_xlsx($lines, $sums, $notes, $label);
-    $attachMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    $fname      = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.xlsx';
-} else {
-    $attachData = order_csv($lines, $sums, $notes, $label);
-    $attachMime = 'text/csv; charset=UTF-8';
-    $fname      = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.csv';
-}
+$attachData = order_csv($lines, $sums, $notes, $label);
+$attachMime = 'text/csv; charset=UTF-8';
+$fname      = 'pedido-' . ($customer ?? 'admin') . '-' . $date . '.csv';
 
 $subject  = '=?UTF-8?B?' . base64_encode("Pedido Danbel · {$label}") . '?=';
 $boundary = 'DBL' . md5(uniqid('', true));
@@ -162,148 +156,6 @@ function order_text(array $lines, array $sums, string $notes, string $label): st
     }
     $out .= "\nIVA y transporte según condiciones comerciales acordadas.";
     return $out;
-}
-
-function order_xlsx(array $lines, array $sums, string $notes, string $label): string
-{
-    $xe = fn(string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
-    // Styles: 0=normal, 1=bold text, 2=decimal, 3=bold decimal
-    $cs = fn(string $col, int $row, string $val, int $s = 0): string =>
-        '<c r="' . $col . $row . '" t="inlineStr"' . ($s ? " s=\"{$s}\"" : '') . '><is><t>' . $xe($val) . '</t></is></c>';
-    $cn = fn(string $col, int $row, float $val, int $s = 0): string =>
-        '<c r="' . $col . $row . '"' . ($s ? " s=\"{$s}\"" : '') . '><v>' . $val . '</v></c>';
-
-    $cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    $rows = '';
-    $r    = 1;
-
-    // Título
-    $rows .= "<row r=\"{$r}\">" . $cs('A', $r, "PEDIDO DANBEL · {$label}", 1) . "</row>\n";
-    $r += 2; // fila en blanco
-
-    // Cabecera
-    $rows .= "<row r=\"{$r}\">";
-    foreach (['Marca', 'Código', 'EAN', 'Descripción', 'Tipo', 'Precio neto', 'Uds.', 'Total'] as $i => $h) {
-        $rows .= $cs($cols[$i], $r, $h, 1);
-    }
-    $rows .= "</row>\n";
-    $r++;
-
-    // Líneas de producto
-    foreach ($lines as $l) {
-        $rows .= "<row r=\"{$r}\">"
-            . $cs('A', $r, $l['family_name'])
-            . $cs('B', $r, $l['code'])
-            . $cs('C', $r, $l['ean'])
-            . $cs('D', $r, $l['name'])
-            . $cs('E', $r, $l['type'] === 'T' ? 'Tester' : 'Producto')
-            . $cn('F', $r, (float) $l['net'], 2)
-            . $cn('G', $r, (float) $l['qty'])
-            . $cn('H', $r, (float) $l['total'], 2)
-            . "</row>\n";
-        $r++;
-    }
-
-    // Totales
-    $r++;
-    $totals = [
-        ['Productos', (float) $sums['products_sum'], false],
-        ['Testers', (float) $sums['testers_sum'], false],
-    ];
-    if ($sums['free'] > 0)  $totals[] = ['Rappel gratuito testers', -(float) $sums['free'], false];
-    if ($sums['dto1'] > 0)  $totals[] = ["Dto. {$sums['dto1']}%", -(float) $sums['d1'], false];
-    if ($sums['dto2'] > 0)  $totals[] = ["Dto. {$sums['dto2']}%", -(float) $sums['d2'], false];
-    $totals[] = ['TOTAL (sin IVA)', (float) $sums['total'], true];
-
-    foreach ($totals as [$tLabel, $tVal, $bold]) {
-        $rows .= "<row r=\"{$r}\">"
-            . $cs('G', $r, $tLabel, 1)
-            . $cn('H', $r, $tVal, $bold ? 3 : 2)
-            . "</row>\n";
-        $r++;
-    }
-
-    if ($notes !== '') {
-        $r++;
-        $rows .= "<row r=\"{$r}\">"
-            . $cs('A', $r, 'Observaciones', 1)
-            . $cs('B', $r, $notes)
-            . "</row>\n";
-    }
-
-    // Construir el ZIP
-    $tmp = tempnam(sys_get_temp_dir(), 'dbl');
-    $zip = new ZipArchive();
-    $zip->open($tmp, ZipArchive::OVERWRITE);
-
-    $zip->addFromString('[Content_Types].xml',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' .
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' .
-        '<Default Extension="xml" ContentType="application/xml"/>' .
-        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' .
-        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' .
-        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' .
-        '</Types>'
-    );
-
-    $zip->addFromString('_rels/.rels',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' .
-        '</Relationships>'
-    );
-
-    $zip->addFromString('xl/workbook.xml',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' .
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' .
-        '<sheets><sheet name="Pedido" sheetId="1" r:id="rId1"/></sheets>' .
-        '</workbook>'
-    );
-
-    $zip->addFromString('xl/_rels/workbook.xml.rels',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' .
-        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' .
-        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' .
-        '</Relationships>'
-    );
-
-    $zip->addFromString('xl/styles.xml',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' .
-        '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>' .
-        '<fonts count="2">' .
-        '<font><sz val="11"/><name val="Calibri"/></font>' .
-        '<font><b/><sz val="11"/><name val="Calibri"/></font>' .
-        '</fonts>' .
-        '<fills count="2">' .
-        '<fill><patternFill patternType="none"/></fill>' .
-        '<fill><patternFill patternType="gray125"/></fill>' .
-        '</fills>' .
-        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' .
-        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' .
-        '<cellXfs count="4">' .
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' .
-        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' .
-        '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' .
-        '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>' .
-        '</cellXfs>' .
-        '</styleSheet>'
-    );
-
-    $zip->addFromString('xl/worksheets/sheet1.xml',
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' .
-        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' .
-        '<sheetData>' . $rows . '</sheetData>' .
-        '</worksheet>'
-    );
-
-    $zip->close();
-    $content = file_get_contents($tmp);
-    unlink($tmp);
-    return $content;
 }
 
 function order_csv(array $lines, array $sums, string $notes, string $label): string
