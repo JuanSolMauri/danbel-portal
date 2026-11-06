@@ -75,7 +75,8 @@ site_header('catalogo', $access, $user);
       data-customer="<?= e($customer ?? '') ?>"
       data-discount="<?= e(percent((float) ($selected['discount'] ?? 0))) ?>"
       data-dto1="<?= e((string) $extra['dto1']) ?>" data-dto2="<?= e((string) $extra['dto2']) ?>"
-      data-order-email="<?= e((string) config('order_email', '')) ?>">
+      data-order-email="<?= e((string) config('order_email', '')) ?>"
+      data-csrf="<?= e(csrf_token()) ?>">
       <div class="results-head">
         <div>
           <h2><?= e($selected['name']) ?></h2>
@@ -216,6 +217,6 @@ site_header('catalogo', $access, $user);
   </div>
 </div>
 <div class="lightbox" id="lightbox" hidden><button type="button" class="lightbox-close" aria-label="Cerrar">×</button><img alt=""></div>
-<script src="assets/portal.js?v=7"></script>
+<script src="assets/portal.js?v=8"></script>
 <?php
 page_end();

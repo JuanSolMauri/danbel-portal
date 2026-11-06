@@ -274,24 +274,32 @@
     document.getElementById("checkout-back").addEventListener("click", closeCheckout);
     document.getElementById("checkout-back2").addEventListener("click", closeCheckout);
     document.getElementById("checkout-send").addEventListener("click", function () {
+      var btn = document.getElementById("checkout-send");
+      btn.disabled = true;
+      btn.textContent = "Enviando…";
       var items = gatherAllItems();
-      fetch("app/cart-summary.php", {
+      var d = results.dataset;
+      fetch("app/send-order.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: items })
+        body: JSON.stringify({ items: items, notes: notes.value.trim(), csrf: d.csrf || "" })
       })
         .then(function (r) { return r.json(); })
-        .then(function (data) {
+        .then(function (resp) {
           closeCheckout();
-          var d = results.dataset;
-          var subject = "Pedido Danbel · Cliente " + (d.customer || "sin código");
-          window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(allOrderText(data));
+          if (resp.ok) {
+            alert("Pedido enviado correctamente. Recibirás una copia por correo.");
+          } else {
+            alert("Error al enviar el pedido (" + (resp.error || "desconocido") + "). Inténtalo de nuevo o contacta con Danbel.");
+          }
         })
         .catch(function () {
           closeCheckout();
-          var d = results.dataset;
-          var subject = "Pedido " + d.brand + " · Cliente " + (d.customer || "sin código");
-          window.location.href = "mailto:" + (d.orderEmail || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(orderText());
+          alert("Error de conexión al enviar el pedido. Inténtalo de nuevo.");
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = "Enviar pedido por correo";
         });
     });
   }
