@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS users (
   role ENUM('admin','customer') NOT NULL,
   customer_code INT NULL,
   password_hash VARCHAR(255) NOT NULL,
+  must_change TINYINT(1) NOT NULL DEFAULT 0,
+  last_login TIMESTAMP NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -57,7 +59,8 @@ CREATE TABLE IF NOT EXISTS customers (
   req DECIMAL(5,2) NULL,
   sales_rep VARCHAR(100) NULL,
   dto1 DECIMAL(5,2) NOT NULL DEFAULT 0,
-  dto2 DECIMAL(5,2) NOT NULL DEFAULT 0
+  dto2 DECIMAL(5,2) NOT NULL DEFAULT 0,
+  blocked TINYINT(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS stock (
@@ -72,4 +75,15 @@ CREATE TABLE IF NOT EXISTS imports (
   families INT NOT NULL,
   products INT NOT NULL,
   customers INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Enlaces de un solo uso para crear o recuperar la contraseña (se guarda el hash del token).
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash CHAR(64) NOT NULL PRIMARY KEY,
+  customer_code INT NOT NULL,
+  email VARCHAR(120) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_resets_customer (customer_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

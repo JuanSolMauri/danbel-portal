@@ -12,7 +12,7 @@ function page_start(string $title): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title) ?></title>
 <link rel="icon" href="img/favicon.svg">
-<link rel="stylesheet" href="assets/portal.css?v=4">
+<link rel="stylesheet" href="assets/portal.css?v=5">
 </head>
 <body>
 <?php
@@ -42,6 +42,7 @@ function site_header(string $active, array $access, array $user): void
     <span class="sample-tag">Catálogo privado</span>
     <span class="account"><?= e($account) ?></span>
     <?php if ($access['customer'] !== null): ?><button type="button" class="btn btn-outline btn-sm" data-open="customer-data">Datos Cliente</button><?php endif ?>
+    <a class="btn btn-outline btn-sm" href="cambiar-clave.php">Contraseña</a>
     <form action="logout.php" method="post"><?= csrf_field() ?><button type="submit" class="btn btn-outline btn-sm">Salir</button></form>
   </div>
 </header>

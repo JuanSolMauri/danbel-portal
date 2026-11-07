@@ -18,25 +18,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_post_csrf();
     $login = strtolower(trim((string) ($_POST['login'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
-    $ip = substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
 
-    $db = db();
-    $db->prepare('DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY')->execute();
-    $stmt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND attempted_at > NOW() - INTERVAL 15 MINUTE');
-    $stmt->execute([$ip]);
-    if ((int) $stmt->fetchColumn() >= 10) {
+    if (too_many_attempts()) {
         $error = 'Demasiados intentos. Espera unos minutos y vuelve a probar.';
     } else {
-        $stmt = $db->prepare('SELECT id, password_hash FROM users WHERE login = ?');
+        $stmt = db()->prepare('SELECT id, role, customer_code, must_change, password_hash FROM users WHERE login = ?');
         $stmt->execute([$login]);
         $user = $stmt->fetch();
         if ($user && password_verify($password, $user['password_hash'])) {
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = (int) $user['id'];
-            redirect($next);
+            if ($user['role'] === 'customer' && customer_blocked($user['customer_code'])) {
+                $error = 'Tu acceso está desactivado. Contacta con Danbel.';
+            } else {
+                log_in((int) $user['id']);
+                redirect((int) $user['must_change'] === 1 ? 'cambiar-clave.php' : $next);
+            }
+        } else {
+            record_attempt();
+            $error = 'Usuario o contraseña incorrectos.';
         }
-        $db->prepare('INSERT INTO login_attempts (ip) VALUES (?)')->execute([$ip]);
-        $error = 'Usuario o contraseña incorrectos.';
     }
 }
 
@@ -56,7 +55,7 @@ page_start('Acceso de clientes · Danbel');
     <?php if ($error): ?><p class="login-error" role="alert"><?= e($error) ?></p><?php endif ?>
     <button type="submit" class="btn">Entrar</button>
   </form>
-  <p class="login-help">¿No tienes acceso o has olvidado la contraseña? Contacta con Danbel.</p>
+  <p class="login-help">¿Es tu primera vez o has olvidado la contraseña? <a href="acceso.php">Crea o recupera tu contraseña</a>.</p>
 </main>
 <?php
 page_end();

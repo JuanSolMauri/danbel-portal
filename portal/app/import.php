@@ -135,7 +135,7 @@ function import_erp(PDO $db, array $tables, string $imageDir): array
         $db->exec('DELETE FROM discounts');
         if (isset($tables['customers'])) {
             $db->exec('DELETE FROM customers');
-            insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], read_customers($tables['customers']));
+            insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2', 'blocked'], read_customers($tables['customers']));
         }
         insert_rows($db, 'families', ['code', 'name'], array_map(fn($code, $f) => [$code, $f['name']], array_keys($families), array_values($families)));
         insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete', 'ordre'], array_values($products));
@@ -179,6 +179,8 @@ function read_customers(string $path): array
             (int) $r['CODI'], $text($r['NOMFIS']), $text($r['NOMCOM']), $text($r['ADRESA']), $text($r['CODIPOS']),
             $text($r['POBLACIO']), $text($r['PROVINCIA']), $text($r['NIF']), $text($r['TELEF1']), $text($r['EMAIL']),
             $account ?: null, $r['IVA'], $r['REQ'], $text($r['NOMCOME']), (float) ($r['DTO1'] ?? 0), (float) ($r['DTO2'] ?? 0),
+            // Sin acceso al portal: inactivo (ACT=.F.) o bloqueado (BLOQ=.T.) en el ERP.
+            (!($r['ACT'] ?? true) || ($r['BLOQ'] ?? false)) ? 1 : 0,
         ];
     }
     return array_values($rows);
@@ -307,6 +309,7 @@ function import_erp_mysql(PDO $db, PDO $erp, string $imageDir): array
                 $text($r['NIF'] ?? ''), $text($r['TELEF1'] ?? ''), $text($r['EMAIL'] ?? ''),
                 $account ?: null, $r['IVA'] ?? null, $r['REQ'] ?? null, $text($r['NOMCOME'] ?? ''),
                 (float) ($r['DTO1'] ?? 0), (float) ($r['DTO2'] ?? 0),
+                (!$boolVal($r['ACT'] ?? true) || $boolVal($r['BLOQ'] ?? false)) ? 1 : 0,
             ];
         }
     } catch (Throwable $e) {
@@ -321,7 +324,7 @@ function import_erp_mysql(PDO $db, PDO $erp, string $imageDir): array
         $db->exec('DELETE FROM discounts');
         if ($customerRows) {
             $db->exec('DELETE FROM customers');
-            insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2'], array_values($customerRows));
+            insert_rows($db, 'customers', ['code', 'fiscal_name', 'trade_name', 'address', 'postcode', 'city', 'province', 'nif', 'phone', 'email', 'account', 'vat', 'req', 'sales_rep', 'dto1', 'dto2', 'blocked'], array_values($customerRows));
         }
         insert_rows($db, 'families', ['code', 'name'], array_map(fn($code, $f) => [$code, $f['name']], array_keys($families), array_values($families)));
         insert_rows($db, 'products', ['code', 'family', 'line_name', 'name', 'ean', 'pvp', 'base_price', 'image', 'tester', 'obsolete', 'ordre'], array_values($products));
