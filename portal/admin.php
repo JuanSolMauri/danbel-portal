@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/app/bootstrap.php';
 require __DIR__ . '/app/layout.php';
 require __DIR__ . '/app/import.php';
+require __DIR__ . '/app/account.php';
 
 $user = require_admin();
 $access = resolve_access($user);
@@ -215,16 +216,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $role = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'customer';
             $code = trim((string) ($_POST['customer_code'] ?? ''));
             $password = (string) ($_POST['password'] ?? '');
+            // Sin contraseña escrita se genera una provisional.
+            $generated = $password === '';
+            if ($generated) {
+                $password = generate_temp_password();
+            }
             if ($login === '' || strlen($password) < 8) {
-                throw new RuntimeException('Indica el usuario y una contraseña de al menos 8 caracteres.');
+                throw new RuntimeException('Indica el usuario y una contraseña de al menos 8 caracteres (o déjala vacía para generar una).');
             }
             if ($role === 'customer' && !preg_match('/^\d{1,6}$/', $code)) {
                 throw new RuntimeException('Indica el código de cliente (solo números).');
             }
-            db()->prepare('INSERT INTO users (login, role, customer_code, password_hash) VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE role = VALUES(role), customer_code = VALUES(customer_code), password_hash = VALUES(password_hash)')
-                ->execute([$login, $role, $role === 'customer' ? (int) $code : null, password_hash($password, PASSWORD_DEFAULT)]);
-            $message = "Cuenta $login guardada.";
+            // La contraseña que pone el administrador a un cliente es provisional: tendrá que cambiarla al entrar.
+            $mustChange = $role === 'customer' ? 1 : 0;
+            db()->prepare('INSERT INTO users (login, role, customer_code, password_hash, must_change) VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE role = VALUES(role), customer_code = VALUES(customer_code), password_hash = VALUES(password_hash), must_change = VALUES(must_change)')
+                ->execute([$login, $role, $role === 'customer' ? (int) $code : null, password_hash($password, PASSWORD_DEFAULT), $mustChange]);
+            $message = "Cuenta $login guardada."
+                . ($generated ? " Contraseña provisional: $password (apúntala ahora, no se volverá a mostrar)." : '')
+                . ($mustChange ? ' El cliente tendrá que cambiarla al entrar.' : '');
         } elseif ($action === 'upload_stock') {
             $file = $_FILES['stock'] ?? null;
             if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
@@ -364,7 +374,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $lastImport = db()->query('SELECT * FROM imports ORDER BY id DESC LIMIT 1')->fetch();
-$users = db()->query('SELECT id, login, role, customer_code, created_at FROM users ORDER BY role, login')->fetchAll();
+$users = db()->query('SELECT u.id, u.login, u.role, u.customer_code, u.created_at, u.last_login, u.must_change, c.blocked
+    FROM users u LEFT JOIN customers c ON c.code = u.customer_code ORDER BY u.role, u.login')->fetchAll();
 
 page_start('Administración · Danbel');
 site_header('admin', $access, $user);
@@ -436,20 +447,24 @@ site_header('admin', $access, $user);
 
   <section class="customer-panel admin-panel">
     <h2>Cuentas de acceso</h2>
-    <p>Para cambiar la contraseña de una cuenta, vuelve a guardarla con el mismo usuario.</p>
+    <p>Los clientes pueden crear o recuperar su contraseña solos desde «Crea o recupera tu contraseña» en la página de acceso, con su código y el email de su ficha del ERP.
+      Para un cliente sin email, crea aquí la cuenta y deja la contraseña vacía: se generará una provisional que tendrá que cambiar al entrar.
+      Para cambiar la contraseña de una cuenta, vuelve a guardarla con el mismo usuario. Los clientes inactivos o bloqueados en el ERP no pueden entrar.</p>
     <form method="post" class="admin-form admin-user-form">
       <?= csrf_field() ?><input type="hidden" name="action" value="save_user">
       <label>Usuario (email o código)<input class="input" name="login" required></label>
       <label>Tipo<select class="input" name="role"><option value="customer">Cliente</option><option value="admin">Administrador</option></select></label>
       <label>Código de cliente<input class="input" name="customer_code" inputmode="numeric" pattern="[0-9]{1,6}"></label>
-      <label>Contraseña<input class="input" name="password" type="text" minlength="8" required autocomplete="new-password"></label>
+      <label>Contraseña (vacía = provisional)<input class="input" name="password" type="text" minlength="8" autocomplete="new-password"></label>
       <button type="submit" class="btn">Guardar cuenta</button>
     </form>
     <div class="customer-tariff-table"><table class="admin-users">
-      <thead><tr><th>Usuario</th><th>Tipo</th><th>Cliente</th><th>Alta</th><th></th></tr></thead>
+      <thead><tr><th>Usuario</th><th>Tipo</th><th>Cliente</th><th>Alta</th><th>Último acceso</th><th>Estado</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($users as $u): ?>
         <tr><td><?= e($u['login']) ?></td><td><?= $u['role'] === 'admin' ? 'Administrador' : 'Cliente' ?></td><td><?= e($u['customer_code'] ?? '—') ?></td><td><?= e(substr((string) $u['created_at'], 0, 10)) ?></td>
+          <td><?= e($u['last_login'] ? substr((string) $u['last_login'], 0, 16) : '—') ?></td>
+          <td><?= (int) $u['blocked'] === 1 ? 'Bloqueado en ERP' : ((int) $u['must_change'] === 1 ? 'Provisional' : 'Activo') ?></td>
           <td><?php if ((int) $u['id'] !== (int) $user['id']): ?><form method="post" onsubmit="return confirm('¿Borrar esta cuenta?')"><?= csrf_field() ?><input type="hidden" name="action" value="delete_user"><input type="hidden" name="id" value="<?= (int) $u['id'] ?>"><button class="btn btn-outline btn-sm" type="submit">Borrar</button></form><?php endif ?></td></tr>
       <?php endforeach ?>
       </tbody>

@@ -36,6 +36,18 @@ function db(): PDO
         try { $pdo->exec('ALTER TABLE products ADD COLUMN obsolete TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE products ADD COLUMN prio TINYINT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
         try { $pdo->exec('ALTER TABLE products ADD COLUMN ordre INT NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE customers ADD COLUMN blocked TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE users ADD COLUMN must_change TINYINT(1) NOT NULL DEFAULT 0'); } catch (Throwable $e) {}
+        try { $pdo->exec('ALTER TABLE users ADD COLUMN last_login TIMESTAMP NULL'); } catch (Throwable $e) {}
+        $pdo->exec('CREATE TABLE IF NOT EXISTS password_resets (
+            token_hash CHAR(64) NOT NULL PRIMARY KEY,
+            customer_code INT NOT NULL,
+            email VARCHAR(120) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_resets_customer (customer_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
     }
     return $pdo;
 }
@@ -134,9 +146,14 @@ function current_user(): ?array
     if ($user === false) {
         $user = null;
         if (!empty($_SESSION['user_id'])) {
-            $stmt = db()->prepare('SELECT id, login, role, customer_code FROM users WHERE id = ?');
+            $stmt = db()->prepare('SELECT id, login, role, customer_code, must_change FROM users WHERE id = ?');
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch() ?: null;
+            // Un cliente que el ERP marca como inactivo o bloqueado pierde el acceso al momento.
+            if ($user && $user['role'] === 'customer' && customer_blocked($user['customer_code'])) {
+                $_SESSION = [];
+                $user = null;
+            }
         }
     }
     return $user;
@@ -148,7 +165,59 @@ function require_user(): array
     if (!$user) {
         redirect('login.php?next=' . urlencode($_SERVER['REQUEST_URI'] ?? 'index.php'));
     }
+    // Con contraseña provisional, lo primero es cambiarla.
+    if ((int) $user['must_change'] === 1 && basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')) !== 'cambiar-clave.php') {
+        redirect('cambiar-clave.php');
+    }
     return $user;
+}
+
+/** true si la ficha del cliente (importada de TCLIENT) está inactiva o bloqueada en el ERP. */
+function customer_blocked($code): bool
+{
+    if ($code === null) {
+        return false;
+    }
+    $stmt = db()->prepare('SELECT blocked FROM customers WHERE code = ?');
+    $stmt->execute([(int) $code]);
+    return (int) $stmt->fetchColumn() === 1;
+}
+
+/** true si esta IP ha superado el límite de intentos en los últimos 15 minutos. */
+function too_many_attempts(int $max = 10): bool
+{
+    $ip = substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    $db = db();
+    $db->prepare('DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY')->execute();
+    $stmt = $db->prepare('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND attempted_at > NOW() - INTERVAL 15 MINUTE');
+    $stmt->execute([$ip]);
+    return (int) $stmt->fetchColumn() >= $max;
+}
+
+function record_attempt(): void
+{
+    $ip = substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+    db()->prepare('INSERT INTO login_attempts (ip) VALUES (?)')->execute([$ip]);
+}
+
+/** Inicia la sesión de un usuario ya verificado. */
+function log_in(int $userId): void
+{
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $userId;
+    db()->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$userId]);
+}
+
+/** URL absoluta de una página del portal (para los enlaces de los correos). */
+function portal_url(string $page): string
+{
+    $base = (string) config('base_url', '');
+    if ($base === '') {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'danbelgroup.com');
+        $dir = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/'))), '/');
+        $base = (is_https() ? 'https://' : 'http://') . $host . $dir;
+    }
+    return rtrim($base, '/') . '/' . $page;
 }
 
 function require_admin(): array

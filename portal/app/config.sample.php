@@ -11,6 +11,9 @@ return [
     // Texto secreto para crear el primer administrador en instalar.php.
     // Déjalo vacío ('') después de instalar para desactivar esa página.
     'install_token' => 'cambia-esto-por-un-texto-largo-y-aleatorio',
+    // Dirección pública del portal, para los enlaces de los correos de contraseña.
+    // Si se deja vacía se calcula sola a partir de la página visitada.
+    'base_url' => 'https://danbelgroup.com/clientes',
     // Dirección a la que los clientes envían los pedidos (se rellena en el correo).
     'order_email' => '',
     // Códigos de cliente que pueden ver la columna Stock (además del administrador).
