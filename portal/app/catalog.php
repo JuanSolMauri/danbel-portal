@@ -54,10 +54,9 @@ function visible_families(?string $customer): array
     return $out;
 }
 
-/** Artículos de la familia "En liquidación": obsoletos con stock, usando el descuento del cliente por familia. */
+/** Artículos de PRODUCTOS OUTLET: obsoletos con stock, siempre con un 40% de descuento sobre la tarifa. */
 function liquidation_catalog(?string $customer): array
 {
-    $discounts = $customer !== null ? customer_discounts($customer) : [];
     $stmt = db()->query(
         'SELECT p.code, p.line_name, p.name, p.ean, p.pvp, p.base_price, p.tester, p.family,
                 f.name AS family_name, COALESCE(s.qty, 0) AS stock
@@ -77,7 +76,6 @@ function liquidation_catalog(?string $customer): array
         $base = (float) $p['base_price'];
         $tester = (bool) $p['tester'];
         $ean = $p['ean'] ?? '';
-        $discount = $discounts[$p['family']] ?? 0.0;
         $products[$p['code']] = [
             'code'   => $p['code'],
             'line'   => $p['line_name'],
@@ -85,7 +83,7 @@ function liquidation_catalog(?string $customer): array
             'ean'    => $p['ean'],
             'pvp'    => $p['pvp'] !== null ? (float) $p['pvp'] : null,
             'base'   => $base,
-            'net'    => $tester ? (float) $p['pvp'] : round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON, 2),
+            'net'    => $tester ? (float) $p['pvp'] : round($base * 0.60 + PHP_FLOAT_EPSILON, 2),
             'image'  => $ean !== '' ? ($photos[$ean] ?? null) : null,
             'stock'  => (int) $p['stock'],
             'tester' => $tester,
