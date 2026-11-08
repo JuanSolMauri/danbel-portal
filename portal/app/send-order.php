@@ -47,7 +47,7 @@ $dto2      = (float) ($record['dto2'] ?? 0);
 $codes = array_keys($items);
 $ph    = implode(',', array_fill(0, count($codes), '?'));
 $stmt  = db()->prepare(
-    "SELECT p.code, p.name, p.ean, p.pvp, p.base_price, p.tester, p.family, f.name AS family_name
+    "SELECT p.code, p.name, p.ean, p.pvp, p.base_price, p.tester, p.family, p.obsolete, f.name AS family_name
      FROM products p JOIN families f ON f.code = p.family
      WHERE p.code IN ($ph)"
 );
@@ -61,7 +61,8 @@ foreach ($stmt->fetchAll() as $p) {
     $discount = isset($discounts[$family]) ? (float) $discounts[$family] : 0.0;
     $base     = (float) $p['base_price'];
     $tester   = (bool) $p['tester'];
-    $net      = $tester ? (float) $p['pvp'] : $round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON);
+    $outlet   = (bool) $p['obsolete'];
+    $net      = $tester ? (float) $p['pvp'] : ($outlet ? $round($base * 0.60 + PHP_FLOAT_EPSILON) : $round($base * (1 - $discount / 100) + PHP_FLOAT_EPSILON));
     $qty      = $items[$p['code']];
     $lines[]  = [
         'family_name' => $p['family_name'],
