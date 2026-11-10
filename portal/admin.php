@@ -229,6 +229,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             // La contraseña que pone el administrador a un cliente es provisional: tendrá que cambiarla al entrar.
             $mustChange = $role === 'customer' ? 1 : 0;
+            // Protección: nunca convertir una cuenta admin en cliente.
+            $chk = db()->prepare("SELECT role FROM users WHERE login = ?");
+            $chk->execute([$login]);
+            $existingRole = $chk->fetchColumn();
+            if ($existingRole === 'admin' && $role !== 'admin') {
+                throw new RuntimeException("El usuario {$login} es administrador. Para cambiar su contraseña usa el formulario de admin, no el de clientes.");
+            }
             db()->prepare('INSERT INTO users (login, role, customer_code, password_hash, must_change) VALUES (?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE role = VALUES(role), customer_code = VALUES(customer_code), password_hash = VALUES(password_hash), must_change = VALUES(must_change)')
                 ->execute([$login, $role, $role === 'customer' ? (int) $code : null, password_hash($password, PASSWORD_DEFAULT), $mustChange]);
